@@ -1,0 +1,31 @@
+{
+  "humanName": "AAMIR",
+  "humanTag": "aamir",
+  "mode": "parallel",
+  "agents": [
+    {
+      "name": "Agent 1",
+      "tag": "agent1",
+      "provider": "glm",
+      "model": "glm-5",
+      "systemPrompt": ["./prompts/base.md", "PATH TO AGENT 1 PROMPT"],
+      "permissions": "full-access",
+      "executablePath": "/Users/aamir/.local/bin/claude",
+      "env": {
+        "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.5-air",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-4.5",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5"
+      }
+    },
+    {
+      "name": "Agent 2",
+      "tag": "agent2",
+      "provider": "claude",
+      "model": "opus",
+      "systemPrompt": ["./prompts/base.md", "PATH TO AGENT 2 PROMPT"],
+      "permissions": "full-access",
+      "executablePath": "/Users/aamir/.local/bin/claude"
+    }
+  ]
+}
