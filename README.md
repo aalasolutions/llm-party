@@ -67,6 +67,66 @@ npm run build
 npm run start
 ```
 
+## Installation
+
+1. Clone the repository:
+
+```bash
+git clone <your-repo-url>
+cd ORCHASTRATION
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Build once:
+
+```bash
+npm run build
+```
+
+4. Configure agents in `configs/default.json`.
+
+5. Run local dev mode:
+
+```bash
+npm run dev
+```
+
+## Install Global Command
+
+If you want Claude-style behavior, install this repo as a global command and run it from any folder.
+
+From project root:
+
+```bash
+npm install
+npm run build
+npm link
+```
+
+Then from any folder:
+
+```bash
+cd ~/myproject/folder/deep
+llm-party
+```
+
+Behavior:
+
+- llm-party runs in your current folder (the folder you launch it from).
+- Agent tools use that current folder as the working directory.
+- Config defaults to this repo path at configs/default.json.
+
+Optional config override:
+
+```bash
+LLMS_PARTY_CONFIG=/absolute/path/to/another-config.json llm-party
+```
+
 ## Terminal Commands
 
 - `/agents` lists active agents with tag, provider, and model.

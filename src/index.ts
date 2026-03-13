@@ -1,6 +1,8 @@
+#!/usr/bin/env node
 import "dotenv/config";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { ClaudeAdapter } from "./adapters/claude.js";
 import { GlmAdapter } from "./adapters/glm.js";
 import { loadConfig } from "./config/loader.js";
@@ -8,16 +10,22 @@ import { Orchestrator } from "./orchestrator.js";
 import { runTerminal } from "./ui/terminal.js";
 
 async function main(): Promise<void> {
-  const configPath = path.resolve("configs/default.json");
+  const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const configPath = process.env.LLMS_PARTY_CONFIG
+    ? path.resolve(process.env.LLMS_PARTY_CONFIG)
+    : path.join(appRoot, "configs", "default.json");
   const config = await loadConfig(configPath);
   const humanName = config.humanName?.trim() || "USER";
   const humanTag = config.humanTag?.trim() || toTag(humanName);
+  const resolveFromAppRoot = (value: string): string => {
+    return path.isAbsolute(value) ? value : path.resolve(appRoot, value);
+  };
 
   const adapters = await Promise.all(
     config.agents.map(async (agent, index, allAgents) => {
       const promptPaths = Array.isArray(agent.systemPrompt)
-        ? agent.systemPrompt.map((p) => path.resolve(p))
-        : [path.resolve(agent.systemPrompt)];
+        ? agent.systemPrompt.map((p) => resolveFromAppRoot(p))
+        : [resolveFromAppRoot(agent.systemPrompt)];
       const promptParts = await Promise.all(promptPaths.map((p) => readFile(p, "utf8")));
       const promptTemplate = promptParts.join("\n\n---\n\n");
       const peers = allAgents.filter((candidate) => candidate.name !== agent.name);

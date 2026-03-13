@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "llm-party": "dist/index.js"
+  },
   "description": "Peer LLM orchestrator terminal app",
   "scripts": {
     "dev": "tsx src/index.ts",
