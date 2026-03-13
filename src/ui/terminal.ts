@@ -1,4 +1,5 @@
 import readline from "node:readline/promises";
+import { execFile } from "node:child_process";
 import { stdin as input, stdout as output } from "node:process";
 import chalk from "chalk";
 import { Orchestrator } from "../orchestrator.js";
@@ -9,6 +10,7 @@ export async function runTerminal(orchestrator: Orchestrator): Promise<void> {
   const humanName = orchestrator.getHumanName();
   const tags = formatTagHints(orchestrator);
   let lastTargets: string[] | undefined;
+  let knownChangedFiles = await getChangedFiles();
 
   process.on("SIGINT", () => {
     rl.close();
@@ -18,9 +20,11 @@ export async function runTerminal(orchestrator: Orchestrator): Promise<void> {
 
   output.write(
     chalk.cyan(
-      `llms-party Phase 1 started. Commands: /agents, /history, /save <path>, /exit. Tags: ${tags}\n`
+      `llms-party Phase 1 started. Commands: /agents, /history, /save <path>, /session, /changes, /exit. Tags: ${tags}\n`
     )
   );
+  output.write(chalk.gray(`Session: ${orchestrator.getSessionId()}\n`));
+  output.write(chalk.gray(`Transcript: ${orchestrator.getTranscriptPath()}\n`));
 
   while (true) {
     let line = "";
@@ -59,6 +63,25 @@ export async function runTerminal(orchestrator: Orchestrator): Promise<void> {
       continue;
     }
 
+    if (line === "/session") {
+      output.write(chalk.cyan(`Session: ${orchestrator.getSessionId()}\n`));
+      output.write(chalk.cyan(`Transcript: ${orchestrator.getTranscriptPath()}\n`));
+      continue;
+    }
+
+    if (line === "/changes") {
+      const changedFiles = await getChangedFiles();
+      if (changedFiles.length === 0) {
+        output.write(chalk.cyan("No modified files in git working tree.\n"));
+      } else {
+        output.write(chalk.cyan("Modified files:\n"));
+        for (const file of changedFiles) {
+          output.write(`- ${file}\n`);
+        }
+      }
+      continue;
+    }
+
     if (line.startsWith("/save ")) {
       const filePath = line.replace("/save ", "").trim();
       if (!filePath) {
@@ -87,20 +110,41 @@ export async function runTerminal(orchestrator: Orchestrator): Promise<void> {
     const userMessage = orchestrator.addUserMessage(routing.message);
     await orchestrator.appendTranscript(userMessage);
 
-    await dispatchWithHandoffs(orchestrator, output, targets);
+    knownChangedFiles = await dispatchWithHandoffs(orchestrator, output, targets, knownChangedFiles);
   }
 
   rl.close();
 }
 
+async function getChangedFiles(): Promise<string[]> {
+  return new Promise((resolve) => {
+    execFile("git", ["status", "--porcelain"], { cwd: process.cwd() }, (error, stdout) => {
+      if (error) {
+        resolve([]);
+        return;
+      }
+
+      const files = stdout
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 3)
+        .map((line) => line.slice(3).trim());
+
+      resolve(Array.from(new Set(files)));
+    });
+  });
+}
+
 async function dispatchWithHandoffs(
   orchestrator: Orchestrator,
   out: NodeJS.WriteStream,
-  initialTargets?: string[]
-): Promise<void> {
+  initialTargets?: string[],
+  previousChangedFiles: string[] = []
+): Promise<string[]> {
   let targets = initialTargets;
   let hops = 0;
   const maxHops = 6;
+  let knownChangedFiles = previousChangedFiles;
 
   while (true) {
     const targetLabel = targets && targets.length > 0 ? targets.join(",") : "all";
@@ -112,9 +156,19 @@ async function dispatchWithHandoffs(
       out.write(chalk.magenta(`[${msg.from}]`) + ` ${msg.text}\n\n`);
     });
 
+    const latestChangedFiles = await getChangedFiles();
+    const newlyChanged = diffChangedFiles(knownChangedFiles, latestChangedFiles);
+    if (newlyChanged.length > 0) {
+      out.write(chalk.yellow(`LLM modified files at ${new Date().toISOString()}:\n`));
+      for (const file of newlyChanged) {
+        out.write(chalk.yellow(`- ${file}\n`));
+      }
+    }
+    knownChangedFiles = latestChangedFiles;
+
     const nextSelectors = extractNextSelectors(batch);
     if (nextSelectors.length === 0) {
-      return;
+      return knownChangedFiles;
     }
 
     if (
@@ -124,7 +178,7 @@ async function dispatchWithHandoffs(
           || normalized === orchestrator.getHumanName().toLowerCase();
       })
     ) {
-      return;
+      return knownChangedFiles;
     }
 
     const resolvedTargets = Array.from(
@@ -133,18 +187,23 @@ async function dispatchWithHandoffs(
 
     if (resolvedTargets.length === 0) {
       out.write(chalk.yellow(`Ignored @next target(s): ${nextSelectors.join(",")}\n`));
-      return;
+      return knownChangedFiles;
     }
 
     hops += 1;
     if (hops >= maxHops) {
       out.write(chalk.yellow(`Stopped auto-handoff after ${maxHops} hops to prevent loops.\n`));
-      return;
+      return knownChangedFiles;
     }
 
     out.write(chalk.gray(`Auto handoff via @next to ${resolvedTargets.join(",")}\n`));
     targets = resolvedTargets;
   }
+}
+
+function diffChangedFiles(before: string[], after: string[]): string[] {
+  const beforeSet = new Set(before);
+  return after.filter((file) => !beforeSet.has(file));
 }
 
 function formatTagHints(orchestrator: Orchestrator): string {
