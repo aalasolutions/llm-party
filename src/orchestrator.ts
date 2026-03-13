@@ -10,6 +10,8 @@ export class Orchestrator {
   private readonly lastSeenByAgent: Map<string, number> = new Map();
   private readonly humanName: string;
   private readonly humanTag: string;
+  private readonly sessionId: string;
+  private readonly transcriptPath: string;
   private messageId = 0;
   private readonly contextWindowSize = 16;
 
@@ -25,9 +27,19 @@ export class Orchestrator {
     );
     this.humanName = humanName;
     this.humanTag = humanTag ?? defaultTagFor(humanName);
+    this.sessionId = createSessionId();
+    this.transcriptPath = path.resolve("data", "sessions", `transcript-${this.sessionId}.jsonl`);
     for (const agent of agents) {
       this.lastSeenByAgent.set(agent.name, 0);
     }
+  }
+
+  getSessionId(): string {
+    return this.sessionId;
+  }
+
+  getTranscriptPath(): string {
+    return this.transcriptPath;
   }
 
   getHumanName(): string {
@@ -224,9 +236,9 @@ export class Orchestrator {
   }
 
   async appendTranscript(message: ConversationMessage): Promise<void> {
-    const dataDir = path.resolve("data");
-    await mkdir(dataDir, { recursive: true });
-    await appendFile(path.join(dataDir, "transcript.jsonl"), `${JSON.stringify(message)}\n`, "utf8");
+    const transcriptDir = path.dirname(this.transcriptPath);
+    await mkdir(transcriptDir, { recursive: true });
+    await appendFile(this.transcriptPath, `${JSON.stringify(message)}\n`, "utf8");
   }
 
   async saveHistory(targetPath: string): Promise<void> {
@@ -274,6 +286,11 @@ export class Orchestrator {
     const ordered = Array.from(dedupById.values()).sort((a, b) => a.id - b.id);
     return ordered.filter((msg) => msg.from.toUpperCase() !== agentName.toUpperCase() || msg.id > 0);
   }
+}
+
+function createSessionId(): string {
+  const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
+  return `${timestamp}-${process.pid}`;
 }
 
 function defaultTagFor(name: string): string {
