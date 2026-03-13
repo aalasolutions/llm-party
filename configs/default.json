@@ -8,7 +8,7 @@
       "tag": "agent1",
       "provider": "glm",
       "model": "glm-5",
-      "systemPrompt": ["./prompts/base.md", "PATH TO AGENT 1 PROMPT"],
+      "systemPrompt": ["./prompts/base.md"],
       "permissions": "full-access",
       "executablePath": "/Users/aamir/.local/bin/claude",
       "env": {
@@ -23,7 +23,7 @@
       "tag": "agent2",
       "provider": "claude",
       "model": "opus",
-      "systemPrompt": ["./prompts/base.md", "PATH TO AGENT 2 PROMPT"],
+      "systemPrompt": ["./prompts/base.md"],
       "permissions": "full-access",
       "executablePath": "/Users/aamir/.local/bin/claude"
     }
