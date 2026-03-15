@@ -26,6 +26,14 @@
       "systemPrompt": ["./prompts/base.md"],
       "permissions": "full-access",
       "executablePath": "/Users/aamir/.local/bin/claude"
+    },
+    {
+      "name": "Agent 3",
+      "tag": "agent3",
+      "provider": "copilot",
+      "model": "gpt-4.1",
+      "systemPrompt": ["./prompts/base.md"],
+      "permissions": "full-access"
     }
   ]
 }
