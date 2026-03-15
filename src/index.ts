@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ClaudeAdapter } from "./adapters/claude.js";
+import { CopilotAdapter } from "./adapters/copilot.js";
 import { GlmAdapter } from "./adapters/glm.js";
 import { loadConfig } from "./config/loader.js";
 import { Orchestrator } from "./orchestrator.js";
@@ -60,9 +61,11 @@ async function main(): Promise<void> {
       const adapter =
         agent.provider === "claude"
           ? new ClaudeAdapter(agent.name, agent.model)
-          : agent.provider === "glm"
-            ? new GlmAdapter(agent.name, agent.model)
-            : null;
+          : agent.provider === "copilot"
+            ? new CopilotAdapter(agent.name, agent.model)
+            : agent.provider === "glm"
+              ? new GlmAdapter(agent.name, agent.model)
+              : null;
 
       if (!adapter) {
         throw new Error(`Unsupported provider in Phase 1: ${agent.provider}`);
