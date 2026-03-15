@@ -160,7 +160,7 @@ Main config file: `configs/default.json`
 
 - `humanName` optional display name in terminal prompt.
 - `humanTag` optional tag used for human handoff detection.
-- `mode` accepts `parallel` or `sequential`.
+- `maxAutoHops` optional handoff cap. Use a number like `20` or `"unlimited"`. Default is `6`.
 - `agents` array of agent definitions.
 
 ### Agent Fields
@@ -215,7 +215,7 @@ Use one shared base prompt and optional per-agent overlay prompt:
 {
   "humanName": "AAMIR",
   "humanTag": "aamir",
-  "mode": "parallel",
+  "maxAutoHops": 20,
   "agents": [
     {
       "name": "Agent 1",
