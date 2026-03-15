@@ -1,4 +1,4 @@
-import { CopilotClient, CopilotSession } from "@github/copilot-sdk";
+import { CopilotClient, CopilotSession, approveAll } from "@github/copilot-sdk";
 import { AgentAdapter } from "./base.js";
 import { ConversationMessage, PersonaConfig } from "../types.js";
 
@@ -31,6 +31,7 @@ export class CopilotAdapter implements AgentAdapter {
     this.session = await this.client.createSession({
       model: this.model,
       systemMessage: { content: systemPrompt },
+      onPermissionRequest: approveAll,
     });
   }
 
