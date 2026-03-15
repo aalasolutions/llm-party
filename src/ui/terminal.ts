@@ -5,7 +5,11 @@ import chalk from "chalk";
 import { Orchestrator } from "../orchestrator.js";
 import { ConversationMessage } from "../types.js";
 
-export async function runTerminal(orchestrator: Orchestrator): Promise<void> {
+interface TerminalOptions {
+  maxAutoHops?: number;
+}
+
+export async function runTerminal(orchestrator: Orchestrator, options: TerminalOptions = {}): Promise<void> {
   const rl = readline.createInterface({ input, output });
   const humanName = orchestrator.getHumanName();
   const tags = formatTagHints(orchestrator);
@@ -110,7 +114,13 @@ export async function runTerminal(orchestrator: Orchestrator): Promise<void> {
     const userMessage = orchestrator.addUserMessage(routing.message);
     await orchestrator.appendTranscript(userMessage);
 
-    knownChangedFiles = await dispatchWithHandoffs(orchestrator, output, targets, knownChangedFiles);
+    knownChangedFiles = await dispatchWithHandoffs(
+      orchestrator,
+      output,
+      targets,
+      knownChangedFiles,
+      options.maxAutoHops ?? 6
+    );
   }
 
   rl.close();
@@ -139,11 +149,11 @@ async function dispatchWithHandoffs(
   orchestrator: Orchestrator,
   out: NodeJS.WriteStream,
   initialTargets?: string[],
-  previousChangedFiles: string[] = []
+  previousChangedFiles: string[] = [],
+  maxHops = 6
 ): Promise<string[]> {
   let targets = initialTargets;
   let hops = 0;
-  const maxHops = 6;
   let knownChangedFiles = previousChangedFiles;
 
   while (true) {
@@ -191,7 +201,7 @@ async function dispatchWithHandoffs(
     }
 
     hops += 1;
-    if (hops >= maxHops) {
+    if (Number.isFinite(maxHops) && hops >= maxHops) {
       out.write(chalk.yellow(`Stopped auto-handoff after ${maxHops} hops to prevent loops.\n`));
       return knownChangedFiles;
     }
