@@ -1,8 +1,6 @@
 # llms-party
 
-AAMIR, this project is a terminal-first multi-agent orchestrator.
-
-It runs multiple LLM agents as peers in one session, routes messages by tags, supports agent-to-agent handoff using `@next:<tag>`, and keeps a per-session transcript.
+A terminal-first multi-agent orchestrator. Run multiple LLM agents as peers in one session, route messages by tags, support agent-to-agent handoff using `@next:<tag>`, and keep a per-session transcript.
 
 ## WARNING: FULL AUTONOMY / USE AT YOUR OWN RISK
 
@@ -34,97 +32,30 @@ Do not run this against sensitive systems, production infrastructure, or reposit
 
 ## Current Providers
 
-- `claude`
-- `glm`
-
-Both providers currently use the Claude Agent SDK runtime under the hood.
+- `claude` (Claude Agent SDK)
+- `copilot` (GitHub Copilot SDK)
+- `glm` (GLM via Claude Agent SDK with env overrides)
 
 ## Quick Start
 
-1. Install dependencies:
+Install globally:
 
 ```bash
-npm install
+npm i -g llms-party
 ```
 
-2. Configure agents in `configs/default.json`.
-
-3. Start development mode:
+Run from any folder:
 
 ```bash
-npm run dev
-```
-
-4. Build production output:
-
-```bash
-npm run build
-```
-
-5. Run compiled output:
-
-```bash
-npm run start
-```
-
-## Installation
-
-1. Clone the repository:
-
-```bash
-git clone <your-repo-url>
-cd ORCHASTRATION
-```
-
-2. Install dependencies:
-
-```bash
-npm install
-```
-
-3. Build once:
-
-```bash
-npm run build
-```
-
-4. Configure agents in `configs/default.json`.
-
-5. Run local dev mode:
-
-```bash
-npm run dev
-```
-
-## Install Global Command
-
-If you want Claude-style behavior, install this repo as a global command and run it from any folder.
-
-From project root:
-
-```bash
-npm install
-npm run build
-npm link
-```
-
-Then from any folder:
-
-```bash
-cd ~/myproject/folder/deep
 llm-party
 ```
 
-Behavior:
+Agents use your current working directory. Config defaults to `configs/default.json` inside the package.
 
-- llm-party runs in your current folder (the folder you launch it from).
-- Agent tools use that current folder as the working directory.
-- Config defaults to this repo path at configs/default.json.
-
-Optional config override:
+Override config path:
 
 ```bash
-LLMS_PARTY_CONFIG=/absolute/path/to/another-config.json llm-party
+LLMS_PARTY_CONFIG=/absolute/path/to/config.json llm-party
 ```
 
 ## Terminal Commands
@@ -150,7 +81,7 @@ Agent-to-agent handoff:
 - Agents can output `@next:<tag>`.
 - The orchestrator resolves and dispatches to that target.
 - Max auto-handoff depth is 6 hops per cycle.
-- Handoff to human tag (for example `@next:aamir`) stops auto-handoff.
+- Handoff to human tag (for example `@next:user`) stops auto-handoff.
 
 ## Config Management
 
@@ -167,11 +98,11 @@ Main config file: `configs/default.json`
 
 - `name` required display name.
 - `tag` optional routing tag. If omitted, generated from `name`.
-- `provider` required, one of `claude` or `glm`.
+- `provider` required, one of `claude`, `copilot`, or `glm`.
 - `model` required model id/name passed to adapter.
 - `systemPrompt` required path or array of paths.
 - `permissions` required, one of `full-access` or `read-only`.
-- `executablePath` optional path to `claude` executable.
+- `executablePath` optional path to CLI executable (`claude` for claude/glm providers, `copilot` for copilot provider). Only needed if the CLI is not in your PATH.
 - `env` optional key-value overrides for that agent process.
 
 ### systemPrompt: Single or Multiple Files
@@ -207,39 +138,45 @@ Available placeholders in prompt files:
 - `{{allAgentTags}}`
 - `{{agentCount}}`
 
-### Recommended Config Pattern
+### Config Example
 
 Use one shared base prompt and optional per-agent overlay prompt:
 
 ```json
 {
-  "humanName": "AAMIR",
-  "humanTag": "aamir",
-  "maxAutoHops": 20,
+  "humanName": "USER",
+  "humanTag": "user",
+  "maxAutoHops": 6,
   "agents": [
     {
       "name": "Agent 1",
       "tag": "agent1",
+      "provider": "claude",
+      "model": "opus",
+      "systemPrompt": ["./prompts/base.md"],
+      "permissions": "full-access"
+    },
+    {
+      "name": "Agent 2",
+      "tag": "agent2",
+      "provider": "copilot",
+      "model": "gpt-4.1",
+      "systemPrompt": ["./prompts/base.md"],
+      "permissions": "full-access"
+    },
+    {
+      "name": "Agent 3",
+      "tag": "agent3",
       "provider": "glm",
       "model": "glm-5",
-      "systemPrompt": ["./prompts/base.md", "./prompts/agent1.md"],
+      "systemPrompt": ["./prompts/base.md"],
       "permissions": "full-access",
-      "executablePath": "/Users/aamir/.local/bin/claude",
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
         "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.5-air",
         "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-4.5",
         "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5"
       }
-    },
-    {
-      "name": "Agent 2",
-      "tag": "agent2",
-      "provider": "claude",
-      "model": "opus",
-      "systemPrompt": ["./prompts/base.md", "./prompts/agent2.md"],
-      "permissions": "full-access",
-      "executablePath": "/Users/aamir/.local/bin/claude"
     }
   ]
 }
