@@ -21,6 +21,6 @@ export interface PersonaConfig {
 export interface AppConfig {
   humanName?: string;
   humanTag?: string;
-  mode: "parallel" | "sequential";
+  maxAutoHops?: number | "unlimited";
   agents: PersonaConfig[];
 }

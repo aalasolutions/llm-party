@@ -17,6 +17,7 @@ async function main(): Promise<void> {
   const config = await loadConfig(configPath);
   const humanName = config.humanName?.trim() || "USER";
   const humanTag = config.humanTag?.trim() || toTag(humanName);
+  const maxAutoHops = resolveMaxAutoHops(config.maxAutoHops);
   const resolveFromAppRoot = (value: string): string => {
     return path.isAbsolute(value) ? value : path.resolve(appRoot, value);
   };
@@ -78,7 +79,19 @@ async function main(): Promise<void> {
     Object.fromEntries(config.agents.map((agent) => [agent.name, agent.tag?.trim() || toTag(agent.name)])),
     humanTag
   );
-  await runTerminal(orchestrator);
+  await runTerminal(orchestrator, { maxAutoHops });
+}
+
+function resolveMaxAutoHops(value: number | "unlimited" | undefined): number {
+  if (value === "unlimited") {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value) && value >= 1) {
+    return Math.floor(value);
+  }
+
+  return 6;
 }
 
 function renderPromptTemplate(template: string, variables: Record<string, string>): string {
