@@ -128,6 +128,8 @@ Agents can pass the conversation to each other by ending their response with `@n
 
 <br/>
 
+> **WARNING: FULL AUTONOMY.** All agents run with full permissions. They can read, write, edit files and execute shell commands with zero approval gates. There is no confirmation step before any action. Run in a disposable environment. You are responsible for any changes, data loss, costs, or side effects. Do not run against production systems.
+
 ## Important notes
 
 **No extra API tokens.** llm-party uses the original CLIs and SDKs under the hood. Your existing authentication and subscriptions are used directly. Sessions created by agents appear in each tool's native session history (Claude Code sessions, Codex threads, etc.).
