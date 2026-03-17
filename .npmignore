@@ -1,0 +1,15 @@
+src/
+.agents/
+.codex/
+.github/
+.claude/
+.llm-party/
+.git/
+.gitignore
+.env
+.env.local
+*.ts
+!dist/**/*.ts
+tsconfig.json
+node_modules/
+*.md.bak
