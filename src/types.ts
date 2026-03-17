@@ -10,7 +10,7 @@ export interface ConversationMessage {
 export interface PersonaConfig {
   name: string;
   tag?: string;
-  provider: "claude" | "copilot" | "glm";
+  provider: "claude" | "copilot" | "codex" | "glm";
   model: string;
   systemPrompt: string | string[];
   permissions: "full-access" | "read-only";

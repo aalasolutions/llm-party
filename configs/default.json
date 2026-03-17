@@ -29,11 +29,20 @@
     },
     {
       "name": "Agent 3",
-      "tag": "agent3",
+      "tag": "copilot",
       "provider": "copilot",
       "model": "gpt-4.1",
       "systemPrompt": ["./prompts/base.md"],
       "permissions": "full-access"
+    },
+    {
+      "name": "Agent 4",
+      "tag": "codex",
+      "provider": "codex",
+      "model": "gpt-5.2",
+      "systemPrompt": ["./prompts/base.md"],
+      "permissions": "full-access",
+      "executablePath": "/opt/homebrew/bin/codex"
     }
   ]
 }
