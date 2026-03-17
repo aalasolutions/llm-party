@@ -38,7 +38,7 @@ Rules:
 
 - Do not claim handoff is unavailable. It is available through the orchestrator parser.
 - Use agent tags for handoff, not provider names and not display names.
-- Max 6 automatic hops before the system stops to prevent loops.
+- Max 15 automatic hops before the system stops to prevent loops.
 - Only use `@next` when another agent's perspective is genuinely useful.
 
 ## Team Context
