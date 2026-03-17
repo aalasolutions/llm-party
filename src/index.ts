@@ -13,8 +13,8 @@ import { runTerminal } from "./ui/terminal.js";
 
 async function main(): Promise<void> {
   const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const configPath = process.env.LLMS_PARTY_CONFIG
-    ? path.resolve(process.env.LLMS_PARTY_CONFIG)
+  const configPath = process.env.LLM_PARTY_CONFIG
+    ? path.resolve(process.env.LLM_PARTY_CONFIG)
     : path.join(appRoot, "configs", "default.json");
   const config = await loadConfig(configPath);
   const humanName = config.humanName?.trim() || "USER";
