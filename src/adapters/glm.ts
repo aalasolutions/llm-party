@@ -19,7 +19,7 @@ export class GlmAdapter implements AgentAdapter {
   }
 
   async init(config: PersonaConfig): Promise<void> {
-    this.systemPrompt = Array.isArray(config.systemPrompt) ? config.systemPrompt.join("\n\n") : config.systemPrompt;
+    this.systemPrompt = config.resolvedPrompt ?? "";
     const aliasEnv = await loadGlmAliasEnv();
     this.runtimeEnv = { ...process.env, ...aliasEnv, ...(config.env ?? {}) };
     this.claudeExecutable = config.executablePath ?? process.env.CLAUDE_CODE_EXECUTABLE;
