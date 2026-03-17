@@ -221,6 +221,7 @@ function formatTagHints(orchestrator: Orchestrator): string {
   const tags = new Set<string>();
 
   tags.add("@all");
+  tags.add("@everyone");
   for (const agent of agents) {
     tags.add(`@${agent.tag}`);
     tags.add(`@${agent.provider}`);
