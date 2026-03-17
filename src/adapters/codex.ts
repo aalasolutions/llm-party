@@ -17,9 +17,7 @@ export class CodexAdapter implements AgentAdapter {
 
   async init(config: PersonaConfig): Promise<void> {
     const cliPath = config.executablePath ?? process.env.CODEX_CLI_EXECUTABLE;
-    const systemPrompt = Array.isArray(config.systemPrompt)
-      ? config.systemPrompt.join("\n\n")
-      : config.systemPrompt;
+    const systemPrompt = config.resolvedPrompt ?? "";
 
     this.codex = new Codex({
       ...(cliPath ? { codexPathOverride: cliPath } : {}),
