@@ -17,10 +17,14 @@ export class CodexAdapter implements AgentAdapter {
 
   async init(config: PersonaConfig): Promise<void> {
     const cliPath = config.executablePath ?? process.env.CODEX_CLI_EXECUTABLE;
+    const systemPrompt = Array.isArray(config.systemPrompt)
+      ? config.systemPrompt.join("\n\n")
+      : config.systemPrompt;
 
     this.codex = new Codex({
       ...(cliPath ? { codexPathOverride: cliPath } : {}),
       ...(config.env?.OPENAI_API_KEY ? { apiKey: config.env.OPENAI_API_KEY } : {}),
+      ...(systemPrompt ? { config: { developer_instructions: systemPrompt } } : {}),
     });
 
     this.thread = this.codex.startThread({
