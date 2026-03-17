@@ -96,71 +96,7 @@ export class Orchestrator {
   }
 
   async fanOut(targetAgentNames?: string[]): Promise<ConversationMessage[]> {
-    const requestedTargets = targetAgentNames && targetAgentNames.length > 0
-      ? targetAgentNames
-      : Array.from(this.agents.keys());
-    const targets = requestedTargets
-      .map((name) => this.agents.get(name))
-      .filter((agent): agent is AgentAdapter => Boolean(agent));
-
-    const historyMaxId = this.messageId;
-
-    const settled = await Promise.allSettled(
-      targets.map(async (agent) => {
-        const agentKey = agent.name;
-        const lastSeen = this.lastSeenByAgent.get(agentKey) ?? 0;
-        const unseen = this.conversation.filter(
-          (msg) => msg.id > lastSeen && msg.from.toUpperCase() !== agent.name.toUpperCase()
-        );
-
-        if (unseen.length === 0) {
-          this.lastSeenByAgent.set(agentKey, historyMaxId);
-          const response: ConversationMessage = {
-            id: ++this.messageId,
-            from: agent.name.toUpperCase(),
-            text: "[No new messages for this agent]",
-            createdAt: new Date().toISOString()
-          };
-          this.conversation.push(response);
-          return response;
-        }
-
-        const inputMessages = this.buildInputForAgent(agent.name, unseen);
-        const responseText = await this.sendWithTimeout(agent, inputMessages, this.timeoutFor(agent.provider));
-        const response: ConversationMessage = {
-          id: ++this.messageId,
-          from: agent.name.toUpperCase(),
-          text: responseText,
-          createdAt: new Date().toISOString()
-        };
-        this.lastSeenByAgent.set(agentKey, historyMaxId);
-        this.conversation.push(response);
-        return response;
-      })
-    );
-
-    const results: ConversationMessage[] = settled.map((item, idx) => {
-      if (item.status === "fulfilled") {
-        return item.value;
-      }
-
-      const agent = targets[idx];
-      const response: ConversationMessage = {
-        id: ++this.messageId,
-        from: agent.name.toUpperCase(),
-        text: `[Adapter Error] ${item.reason instanceof Error ? item.reason.message : String(item.reason)}`,
-        createdAt: new Date().toISOString()
-      };
-      this.lastSeenByAgent.set(agent.name, historyMaxId);
-      this.conversation.push(response);
-      return response;
-    });
-
-    for (const msg of results) {
-      await this.appendTranscript(msg);
-    }
-
-    return results;
+    return this.fanOutWithProgress(targetAgentNames, () => {});
   }
 
   async fanOutWithProgress(
@@ -284,7 +220,7 @@ export class Orchestrator {
     }
 
     const ordered = Array.from(dedupById.values()).sort((a, b) => a.id - b.id);
-    return ordered.filter((msg) => msg.from.toUpperCase() !== agentName.toUpperCase() || msg.id > 0);
+    return ordered.filter((msg) => msg.from.toUpperCase() !== agentName.toUpperCase());
   }
 }
 
