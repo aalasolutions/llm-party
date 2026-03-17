@@ -12,6 +12,8 @@ export class Orchestrator {
   private readonly humanTag: string;
   private readonly sessionId: string;
   private readonly transcriptPath: string;
+  private readonly defaultTimeout: number;
+  private readonly agentTimeouts: Map<string, number>;
   private messageId = 0;
   private readonly contextWindowSize = 16;
 
@@ -19,7 +21,9 @@ export class Orchestrator {
     agents: AgentAdapter[],
     humanName = "USER",
     agentTags?: Record<string, string>,
-    humanTag?: string
+    humanTag?: string,
+    defaultTimeout = 600000,
+    agentTimeouts?: Record<string, number>
   ) {
     this.agents = new Map(agents.map((agent) => [agent.name, agent]));
     this.agentTags = new Map(
@@ -27,8 +31,10 @@ export class Orchestrator {
     );
     this.humanName = humanName;
     this.humanTag = humanTag ?? defaultTagFor(humanName);
+    this.defaultTimeout = defaultTimeout;
+    this.agentTimeouts = new Map(Object.entries(agentTimeouts ?? {}));
     this.sessionId = createSessionId();
-    this.transcriptPath = path.resolve("data", "sessions", `transcript-${this.sessionId}.jsonl`);
+    this.transcriptPath = path.resolve(".llm-party", "sessions", `transcript-${this.sessionId}.jsonl`);
     for (const agent of agents) {
       this.lastSeenByAgent.set(agent.name, 0);
     }
@@ -134,7 +140,7 @@ export class Orchestrator {
         }
 
         const inputMessages = this.buildInputForAgent(agent.name, unseen);
-        const responseText = await this.sendWithTimeout(agent, inputMessages, this.timeoutFor(agent.provider));
+        const responseText = await this.sendWithTimeout(agent, inputMessages, this.timeoutFor(agent.name));
         const response: ConversationMessage = {
           id: ++this.messageId,
           from: agent.name.toUpperCase(),
@@ -202,12 +208,8 @@ export class Orchestrator {
     }
   }
 
-  private timeoutFor(provider: string): number {
-    if (provider.toLowerCase() === "glm") {
-      return 240000;
-    }
-
-    return 120000;
+  private timeoutFor(agentName: string): number {
+    return this.agentTimeouts.get(agentName) ?? this.defaultTimeout;
   }
 
   private buildInputForAgent(agentName: string, unseen: ConversationMessage[]): ConversationMessage[] {
