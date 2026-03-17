@@ -1,12 +1,13 @@
 {
-  "name": "llms-party",
+  "name": "llm-party",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "bin": {
     "llm-party": "dist/index.js"
   },
-  "description": "Peer LLM orchestrator terminal app",
+  "description": "Bring your models. We'll bring the party.",
+  "license": "MIT",
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
