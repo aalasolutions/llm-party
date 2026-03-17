@@ -15,11 +15,13 @@ export interface PersonaConfig {
   systemPrompt: string | string[];
   env?: Record<string, string>;
   executablePath?: string;
+  timeout?: number;
 }
 
 export interface AppConfig {
   humanName?: string;
   humanTag?: string;
   maxAutoHops?: number | "unlimited";
+  timeout?: number;
   agents: PersonaConfig[];
 }
