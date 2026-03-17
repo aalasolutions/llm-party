@@ -7,29 +7,48 @@ import { ClaudeAdapter } from "./adapters/claude.js";
 import { CodexAdapter } from "./adapters/codex.js";
 import { CopilotAdapter } from "./adapters/copilot.js";
 import { GlmAdapter } from "./adapters/glm.js";
-import { loadConfig } from "./config/loader.js";
+import { loadConfig, resolveConfigPath, resolveBasePrompt, initLlmPartyHome, LLM_PARTY_HOME } from "./config/loader.js";
 import { Orchestrator } from "./orchestrator.js";
 import { runTerminal } from "./ui/terminal.js";
 
 async function main(): Promise<void> {
   const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const configPath = process.env.LLM_PARTY_CONFIG
-    ? path.resolve(process.env.LLM_PARTY_CONFIG)
-    : path.join(appRoot, "configs", "default.json");
+
+  if (process.argv.includes("--init")) {
+    await initLlmPartyHome(appRoot);
+    return;
+  }
+
+  try {
+    const { access } = await import("node:fs/promises");
+    await access(LLM_PARTY_HOME);
+  } catch {
+    console.log("First run detected. Setting up ~/.llm-party/...\n");
+    await initLlmPartyHome(appRoot);
+  }
+
+  const configPath = await resolveConfigPath(appRoot);
   const config = await loadConfig(configPath);
   const humanName = config.humanName?.trim() || "USER";
   const humanTag = config.humanTag?.trim() || toTag(humanName);
   const maxAutoHops = resolveMaxAutoHops(config.maxAutoHops);
+
+  const basePrompt = await resolveBasePrompt(appRoot);
+
   const resolveFromAppRoot = (value: string): string => {
     return path.isAbsolute(value) ? value : path.resolve(appRoot, value);
   };
 
   const adapters = await Promise.all(
-    config.agents.map(async (agent, index, allAgents) => {
-      const promptPaths = Array.isArray(agent.systemPrompt)
-        ? agent.systemPrompt.map((p) => resolveFromAppRoot(p))
-        : [resolveFromAppRoot(agent.systemPrompt)];
-      const promptParts = await Promise.all(promptPaths.map((p) => readFile(p, "utf8")));
+    config.agents.map(async (agent, _index, allAgents) => {
+      const promptParts = [basePrompt];
+
+      if (agent.prompts && agent.prompts.length > 0) {
+        const extraPaths = agent.prompts.map((p) => resolveFromAppRoot(p));
+        const extraParts = await Promise.all(extraPaths.map((p) => readFile(p, "utf8")));
+        promptParts.push(...extraParts);
+      }
+
       const promptTemplate = promptParts.join("\n\n---\n\n");
       const peers = allAgents.filter((candidate) => candidate.name !== agent.name);
       const tag = agent.tag?.trim() || toTag(agent.name);
@@ -71,10 +90,10 @@ async function main(): Promise<void> {
                 : null;
 
       if (!adapter) {
-        throw new Error(`Unsupported provider in Phase 1: ${agent.provider}`);
+        throw new Error(`Unsupported provider: ${agent.provider}`);
       }
 
-      await adapter.init({ ...agent, systemPrompt: prompt });
+      await adapter.init({ ...agent, resolvedPrompt: prompt });
       return adapter;
     })
   );
