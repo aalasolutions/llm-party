@@ -12,7 +12,8 @@ export interface PersonaConfig {
   tag?: string;
   provider: "claude" | "copilot" | "codex" | "glm";
   model: string;
-  systemPrompt: string | string[];
+  prompts?: string[];
+  resolvedPrompt?: string;
   env?: Record<string, string>;
   executablePath?: string;
   timeout?: number;
