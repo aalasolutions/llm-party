@@ -1,151 +1,103 @@
 # llms-party
 
-A terminal-first multi-agent orchestrator. Run multiple LLM agents as peers in one session, route messages by tags, support agent-to-agent handoff using `@next:<tag>`, and keep a per-session transcript.
+One terminal. Every AI. No hierarchy.
 
-## WARNING: FULL AUTONOMY / USE AT YOUR OWN RISK
+A peer orchestrator that puts Claude, Codex, Copilot, and GLM in the same room. You talk, they listen. They talk to each other. Nobody is the boss except you.
 
-This project is configured to run with dangerous full-permission behavior (`dangerously-skip-permissions` in adapter options, with `full-access` agent configs).
+```
+YOU > @claude review this function
+[CLAUDE] The error handling on line 42 swallows exceptions silently...
 
-What this means:
+YOU > @codex fix what claude found
+[CODEX] Fixed. Wrapped in try/catch with proper logging. See diff below.
 
-- Agents can read, write, and edit files in your workspace.
-- Agents can execute shell commands through enabled tools.
-- Actions may be destructive, expensive, or irreversible.
-- There is no approval gate in this implementation before tool execution.
-
-Liability notice:
-
-- You are fully responsible for any changes, data loss, outages, costs, or side effects caused by running this project.
-- The authors and contributors provide this software as-is, with no warranties and no liability.
-
-Do not run this against sensitive systems, production infrastructure, or repositories you cannot recover from.
-
-## What This Project Is
-
-- One terminal UI to talk to multiple agents.
-- Agents are configured in `configs/default.json`.
-- Each agent has its own provider, model, tag, prompt, and optional env overrides.
-- Messages can be broadcast or targeted.
-- Agents can hand off to each other in plain text with `@next:<tag>`.
-- Transcript is written per run to `data/sessions/transcript-<sessionId>.jsonl`.
-- File changes made during LLM turns are shown automatically in terminal.
-
-## Current Providers
-
-- `claude` (Claude Agent SDK)
-- `copilot` (GitHub Copilot SDK)
-- `glm` (GLM via Claude Agent SDK with env overrides)
-
-## Quick Start
-
-Install globally:
-
-```bash
-npm i -g llms-party
+YOU > @copilot write tests for the fix
+[COPILOT] Added 3 test cases covering the happy path and both error branches.
 ```
 
-Run from any folder:
+No MCP. No master/servant. No window juggling. Just peers at a terminal table.
+
+## What makes this different
+
+Most multi-agent setups use MCP (one agent controls others) or CLI wrapping (spawn processes and parse terminal output). Both are fragile.
+
+llms-party uses SDK adapters directly. Each agent gets a persistent session with its provider. Full tool access. Real conversation threading. The orchestrator owns routing, not any single agent.
+
+| Provider | SDK | Session Model |
+|----------|-----|---------------|
+| Claude | `@anthropic-ai/claude-agent-sdk` | Resume via session ID |
+| Codex | `@openai/codex-sdk` | Persistent thread with `run()` turns |
+| Copilot | `@github/copilot-sdk` | Persistent session with `sendAndWait()` |
+| GLM | Claude Agent SDK + env routing | Same as Claude, routed through `api.z.ai` |
+
+## WARNING: FULL AUTONOMY
+
+This project runs with **dangerous full-permission behavior**. All agents can read, write, edit files and execute shell commands with zero approval gates.
+
+You are fully responsible for any changes, data loss, costs, or side effects. The authors provide this software as-is with no warranties.
+
+Do not run this against production infrastructure or repositories you cannot recover from.
+
+## Quick start
 
 ```bash
-llm-party
+npm install
+npm run dev
 ```
 
-Agents use your current working directory. Config defaults to `configs/default.json` inside the package.
+Or build and run:
+
+```bash
+npm run build
+npm start
+```
 
 Override config path:
 
 ```bash
-LLMS_PARTY_CONFIG=/absolute/path/to/config.json llm-party
+LLMS_PARTY_CONFIG=/path/to/config.json npm run dev
 ```
 
-## Terminal Commands
+## Terminal commands
 
-- `/agents` lists active agents with tag, provider, and model.
-- `/history` prints in-memory conversation history.
-- `/save <path>` saves full in-memory history JSON.
-- `/session` prints current session id and transcript path.
-- `/changes` prints currently modified files from git working tree.
-- `/exit` exits.
+| Command | What it does |
+|---------|-------------|
+| `/agents` | List active agents with tag, provider, model |
+| `/history` | Print full conversation history |
+| `/save <path>` | Export conversation as JSON |
+| `/session` | Show session ID and transcript path |
+| `/changes` | Show git-modified files |
+| `/exit` | Quit |
 
-## Routing Rules
+## Routing
 
-User message routing:
-
-- `@tag message` routes only to that target.
-- Mentions inside text also route targets, for example: `Please review @agent1 and @agent2`.
-- If no explicit tag is present, it reuses the last explicit target set.
-- If no last target exists, it broadcasts to all agents.
-
-Agent-to-agent handoff:
-
-- Agents can output `@next:<tag>`.
-- The orchestrator resolves and dispatches to that target.
-- Max auto-handoff depth is 6 hops per cycle.
-- Handoff to human tag (for example `@next:user`) stops auto-handoff.
-
-## Config Management
-
-Main config file: `configs/default.json`
-
-### Top-Level Fields
-
-- `humanName` optional display name in terminal prompt.
-- `humanTag` optional tag used for human handoff detection.
-- `maxAutoHops` optional handoff cap. Use a number like `20` or `"unlimited"`. Default is `6`.
-- `agents` array of agent definitions.
-
-### Agent Fields
-
-- `name` required display name.
-- `tag` optional routing tag. If omitted, generated from `name`.
-- `provider` required, one of `claude`, `copilot`, or `glm`.
-- `model` required model id/name passed to adapter.
-- `systemPrompt` required path or array of paths.
-- `permissions` required, one of `full-access` or `read-only`.
-- `executablePath` optional path to CLI executable (`claude` for claude/glm providers, `copilot` for copilot provider). Only needed if the CLI is not in your PATH.
-- `env` optional key-value overrides for that agent process.
-
-### systemPrompt: Single or Multiple Files
-
-`systemPrompt` supports:
-
-- Single file:
-
-```json
-"systemPrompt": "./prompts/base.md"
+**Talk to one agent:**
+```
+@claude explain this error
 ```
 
-- Multiple files merged in order:
-
-```json
-"systemPrompt": ["./prompts/base.md", "./prompts/agent1.md"]
+**Talk to multiple:**
+```
+@claude @codex both of you review this
 ```
 
-When multiple files are used, content is concatenated with separators before template rendering.
+**Broadcast to all (no tag):**
+```
+what do you all think about this approach?
+```
 
-### Prompt Template Variables
+**Sticky targeting:** Once you tag an agent, subsequent untagged messages go to the same target until you switch.
 
-Available placeholders in prompt files:
+**Agent handoff:** Agents can pass the conversation to each other using `@next:<tag>` in their response. Max 6 auto-hops before the system stops to prevent loops.
 
-- `{{humanName}}`
-- `{{humanTag}}`
-- `{{agentName}}`
-- `{{agentTag}}`
-- `{{validHandoffTargets}}`
-- `{{otherAgentList}}`
-- `{{otherAgentNames}}`
-- `{{allAgentNames}}`
-- `{{allAgentTags}}`
-- `{{agentCount}}`
+## Configuration
 
-### Config Example
-
-Use one shared base prompt and optional per-agent overlay prompt:
+Config lives in `configs/default.json`:
 
 ```json
 {
-  "humanName": "USER",
-  "humanTag": "user",
+  "humanName": "AAMIR",
+  "humanTag": "aamir",
   "maxAutoHops": 6,
   "agents": [
     {
@@ -158,78 +110,108 @@ Use one shared base prompt and optional per-agent overlay prompt:
     },
     {
       "name": "Agent 2",
-      "tag": "agent2",
-      "provider": "copilot",
-      "model": "gpt-4.1",
-      "systemPrompt": ["./prompts/base.md"],
-      "permissions": "full-access"
-    },
-    {
-      "name": "Agent 3",
-      "tag": "agent3",
-      "provider": "glm",
-      "model": "glm-5",
+      "tag": "codex",
+      "provider": "codex",
+      "model": "gpt-5.2",
       "systemPrompt": ["./prompts/base.md"],
       "permissions": "full-access",
-      "env": {
-        "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
-        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.5-air",
-        "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-4.5",
-        "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5"
-      }
+      "executablePath": "/opt/homebrew/bin/codex"
     }
   ]
 }
 ```
 
-## Session Files and Output
+### Config fields
 
-- Session transcript path is printed at startup.
-- Every session gets a unique transcript JSONL file.
-- `/save <path>` writes pretty JSON history snapshot for manual export.
-- During each LLM turn, newly changed files are printed automatically.
+**Top level:**
 
-## How To Know What LLM Modified
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `humanName` | No | `USER` | Your display name in the terminal prompt |
+| `humanTag` | No | derived | Tag used for human handoff detection |
+| `maxAutoHops` | No | `6` | Max agent-to-agent handoffs per cycle. Use `"unlimited"` to uncap |
+| `agents` | Yes | | Array of agent definitions |
 
-You have two mechanisms:
+**Per agent:**
 
-- Automatic: after each LLM response cycle, new changed files are printed with timestamp.
-- Manual: run `/changes` at any time.
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Display name |
+| `tag` | No | Routing tag (auto-generated from name if omitted) |
+| `provider` | Yes | One of: `claude`, `codex`, `copilot`, `glm` |
+| `model` | Yes | Model ID passed to the provider |
+| `systemPrompt` | Yes | Path or array of paths to prompt markdown files |
+| `permissions` | Yes | `full-access` or `read-only` |
+| `executablePath` | No | Path to CLI binary if not in PATH |
+| `env` | No | Environment variable overrides for the agent process |
 
-Both are based on git working tree status.
+### System prompts
+
+Single file or multiple files merged in order:
+
+```json
+"systemPrompt": "./prompts/base.md"
+"systemPrompt": ["./prompts/base.md", "./prompts/personality.md"]
+```
+
+Multiple files are concatenated with separators before template rendering. Template variables available in prompt files:
+
+| Variable | Value |
+|----------|-------|
+| `{{agentName}}` | Agent's display name |
+| `{{agentTag}}` | Agent's routing tag |
+| `{{humanName}}` | Human's display name |
+| `{{humanTag}}` | Human's routing tag |
+| `{{agentCount}}` | Total number of active agents |
+| `{{allAgentNames}}` | Comma-separated list of all agent names |
+| `{{allAgentTags}}` | All agent tags formatted as @tag |
+| `{{otherAgentList}}` | Formatted list of other agents with tags |
+| `{{otherAgentNames}}` | Comma-separated names of other agents |
+| `{{validHandoffTargets}}` | Valid `@next:tag` targets for handoff |
+
+### Provider notes
+
+**Claude and GLM** use `@anthropic-ai/claude-agent-sdk`. GLM routes through a proxy URL via environment overrides. System prompt is passed directly to the SDK.
+
+**Copilot** uses `@github/copilot-sdk`. System prompt is set as `systemMessage` on session creation.
+
+**Codex** uses `@openai/codex-sdk`. System prompt is injected via `developer_instructions` config key. Note: Codex has a large built-in system prompt (13k+ tokens) that cannot be overridden. Your instructions are appended alongside it. Functional instructions (naming, formatting, workflow rules) work well. Personality overrides do not.
+
+## Session and transcript
+
+Every run gets a unique session ID and a JSONL transcript file under `data/sessions/`.
+
+File changes made by agents during their turns are detected automatically via `git status` and printed in the terminal with timestamps.
+
+## Architecture
+
+```
+Terminal (you)
+    |
+    v
+Orchestrator
+    |
+    +-- Agent Registry
+    |     +-- Claude  -> ClaudeAdapter  (SDK session, resume by ID)
+    |     +-- Codex   -> CodexAdapter   (SDK thread, persistent turns)
+    |     +-- Copilot -> CopilotAdapter (SDK session, sendAndWait)
+    |     +-- GLM     -> GlmAdapter     (Claude SDK + env proxy)
+    |
+    +-- Conversation Log (ordered, all messages, agent-prefixed)
+    |
+    +-- Transcript Writer (JSONL, append-only, per session)
+```
+
+Each agent receives a rolling window of recent messages plus any unseen messages since its last turn. Messages from other agents are included so everyone sees the full conversation.
 
 ## Troubleshooting
 
-### ENOENT for prompt path
+**"ENOENT for prompt path"**: Your `systemPrompt` points to a file that does not exist. Check paths relative to project root.
 
-Cause:
+**"No agent matched @tag"**: Run `/agents` to see available tags. Check `tag` values in your config.
 
-- `systemPrompt` points to a file that does not exist.
+**Agent goes rogue**: This is expected with full-access permissions. Agents can and will modify files. Use git to recover. Phase 2 will add permission controls.
 
-Fix:
+## License
 
-- Ensure every path in `systemPrompt` exists.
-- Use paths relative to project root (recommended), or absolute paths.
-
-### No agent matched @tag
-
-Cause:
-
-- Unknown tag/name/provider.
-
-Fix:
-
-- Run `/agents` and use listed tags.
-- Check `tag` values in `configs/default.json`.
-
-### Ctrl+C abort error
-
-Status:
-
-- Already handled. Ctrl+C now exits cleanly.
-
-## Notes
-
-- Keep `configs/default.json` as the source of truth.
-- For clear behavior separation, keep shared rules in `prompts/base.md` and agent-specific style in separate prompt files.
-- If two agents share exactly the same prompt and model, expect similar outputs.
+MIT
