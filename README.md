@@ -96,7 +96,7 @@ Edit `configs/default.json`. Each agent needs a name, provider, and model:
 
 ### Agent-to-agent handoff
 
-Agents can pass the conversation to each other by ending their response with `@next:<tag>`. The orchestrator picks it up and dispatches automatically. Max 6 hops per cycle to prevent loops.
+Agents can pass the conversation to each other by ending their response with `@next:<tag>`. The orchestrator picks it up and dispatches automatically. Max 15 hops per cycle to prevent loops.
 
 <br/>
 
@@ -117,6 +117,20 @@ If a CLI doesn't work on its own, it won't work inside llm-party.
 **Run in isolation.** Always run llm-party inside a disposable environment: a Docker container, a VM, or at minimum a throwaway git branch. Agents have full filesystem and shell access with zero approval gates.
 
 <br/>
+
+## How we use the SDKs
+
+llm-party uses **official, publicly available SDKs and CLIs** published by each provider. Nothing is reverse-engineered, patched, or bypassed.
+
+| Provider | Official SDK | Published by |
+|----------|-------------|-------------|
+| Claude | [`@anthropic-ai/claude-agent-sdk`](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) | Anthropic |
+| Codex | [`@openai/codex-sdk`](https://www.npmjs.com/package/@openai/codex-sdk) | OpenAI |
+| Copilot | [`@github/copilot-sdk`](https://www.npmjs.com/package/@github/copilot-sdk) | GitHub |
+
+All authentication flows through the provider's own CLI login. Your API keys, OAuth tokens, and subscriptions are used as-is. llm-party does not store, proxy, or intercept credentials.
+
+If any provider believes this project violates their terms of service, please [open an issue](https://github.com/aalasolutions/llm-party/issues) and we will address it immediately.
 
 ## Supported providers
 
@@ -229,7 +243,8 @@ Config file: `configs/default.json`. Override with `LLM_PARTY_CONFIG` env var.
 |-------|----------|---------|-------------|
 | `humanName` | No | `USER` | Your name displayed in the terminal prompt and passed to agents |
 | `humanTag` | No | derived from `humanName` | Tag used for human handoff detection. When an agent says `@next:you`, the orchestrator stops and returns control to you |
-| `maxAutoHops` | No | `6` | Max agent-to-agent handoffs per cycle. Prevents infinite loops. Use `"unlimited"` to remove the cap |
+| `maxAutoHops` | No | `15` | Max agent-to-agent handoffs per cycle. Prevents infinite loops. Use `"unlimited"` to remove the cap |
+| `timeout` | No | `600` | Default timeout in seconds for all agents. 10 minutes by default |
 | `agents` | Yes | | Array of agent definitions. Must have at least one |
 
 ### Agent fields
@@ -243,6 +258,7 @@ Config file: `configs/default.json`. Override with `LLM_PARTY_CONFIG` env var.
 | `systemPrompt` | Yes | | Path or array of paths to prompt markdown files. Relative to project root |
 | `executablePath` | No | PATH lookup | Path to the CLI binary. Supports `~/` for home directory. Only needed if the CLI is not in your PATH |
 | `env` | No | inherits `process.env` | Environment variable overrides for this agent's process |
+| `timeout` | No | top-level value | Per-agent timeout in seconds. Overrides the top-level default |
 
 ### System prompts
 
@@ -295,7 +311,7 @@ Without the alias, provide everything in the `env` block:
 
 ## Session and transcript
 
-Every run generates a unique session ID and appends messages to a JSONL transcript file under `data/sessions/`. The session ID and transcript path are printed at startup.
+Every run generates a unique session ID and appends messages to a JSONL transcript file under `.llm-party/sessions/`. The session ID and transcript path are printed at startup.
 
 File changes made by agents during their turns are detected via `git status` after each response cycle. Newly modified files are printed with timestamps.
 
