@@ -76,7 +76,7 @@ export class Orchestrator {
 
   resolveTargets(selector: string): string[] {
     const normalized = selector.trim().toLowerCase();
-    if (normalized === "all") {
+    if (normalized === "all" || normalized === "everyone") {
       return Array.from(this.agents.keys());
     }
 
