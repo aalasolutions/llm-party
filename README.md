@@ -5,11 +5,11 @@
   </p>
   <p align="center">
     <a href="https://llm-party.party">Website</a> &middot;
-    <a href="https://www.npmjs.com/package/llm-party">npm</a> &middot;
+    <a href="https://www.npmjs.com/package/llm-party-cli">npm</a> &middot;
     <a href="https://github.com/aalasolutions/llm-party">GitHub</a>
   </p>
   <p align="center">
-    <a href="https://www.npmjs.com/package/llm-party"><img src="https://img.shields.io/npm/v/llm-party?style=flat-square&color=cb3837" alt="npm version"></a>
+    <a href="https://www.npmjs.com/package/llm-party-cli"><img src="https://img.shields.io/npm/v/llm-party-cli?style=flat-square&color=cb3837" alt="npm version"></a>
     <a href="https://github.com/aalasolutions/llm-party/blob/main/LICENSE"><img src="https://img.shields.io/github/license/aalasolutions/llm-party?style=flat-square" alt="license"></a>
     <a href="https://github.com/aalasolutions/llm-party"><img src="https://img.shields.io/github/stars/aalasolutions/llm-party?style=flat-square" alt="stars"></a>
   </p>
@@ -51,7 +51,7 @@ No MCP. No master/servant. No window juggling. Just peers at a terminal table.
 ### Install and run
 
 ```bash
-npm install -g llm-party
+npm install -g llm-party-cli
 llm-party
 ```
 
