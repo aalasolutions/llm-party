@@ -16,9 +16,7 @@ export class CopilotAdapter implements AgentAdapter {
   }
 
   async init(config: PersonaConfig): Promise<void> {
-    const systemPrompt = Array.isArray(config.systemPrompt)
-      ? config.systemPrompt.join("\n\n")
-      : config.systemPrompt;
+    const systemPrompt = config.resolvedPrompt ?? "";
 
     const cliPath = config.executablePath ?? process.env.COPILOT_CLI_EXECUTABLE;
 
