@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { AppConfig } from "../types.js";
 
 const VALID_PROVIDERS = ["claude", "codex", "copilot", "glm"] as const;
@@ -48,6 +49,12 @@ function validateConfig(data: unknown): AppConfig {
       }
     }
 
+  }
+
+  for (const agent of cfg.agents as Record<string, unknown>[]) {
+    if (typeof agent.executablePath === "string" && agent.executablePath.startsWith("~/")) {
+      agent.executablePath = homedir() + agent.executablePath.slice(1);
+    }
   }
 
   return cfg as unknown as AppConfig;
