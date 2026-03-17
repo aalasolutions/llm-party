@@ -79,11 +79,22 @@ async function main(): Promise<void> {
     })
   );
 
+  const defaultTimeout = typeof config.timeout === "number" && config.timeout > 0
+    ? config.timeout * 1000
+    : 600000;
+  const agentTimeouts = Object.fromEntries(
+    config.agents
+      .filter((agent) => typeof agent.timeout === "number" && agent.timeout > 0)
+      .map((agent) => [agent.name, agent.timeout! * 1000])
+  );
+
   const orchestrator = new Orchestrator(
     adapters,
     humanName,
     Object.fromEntries(config.agents.map((agent) => [agent.name, agent.tag?.trim() || toTag(agent.name)])),
-    humanTag
+    humanTag,
+    defaultTimeout,
+    agentTimeouts
   );
   await runTerminal(orchestrator, { maxAutoHops });
 }
@@ -97,7 +108,7 @@ function resolveMaxAutoHops(value: number | "unlimited" | undefined): number {
     return Math.floor(value);
   }
 
-  return 6;
+  return 15;
 }
 
 function renderPromptTemplate(template: string, variables: Record<string, string>): string {
