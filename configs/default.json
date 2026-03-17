@@ -9,8 +9,7 @@
       "provider": "glm",
       "model": "glm-5",
       "systemPrompt": ["./prompts/base.md"],
-      "permissions": "full-access",
-      "executablePath": "/Users/aamir/.local/bin/claude",
+      "executablePath": "~/.local/bin/claude",
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
         "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.5-air",
@@ -24,24 +23,21 @@
       "provider": "claude",
       "model": "opus",
       "systemPrompt": ["./prompts/base.md"],
-      "permissions": "full-access",
-      "executablePath": "/Users/aamir/.local/bin/claude"
+      "executablePath": "~/.local/bin/claude"
     },
     {
       "name": "Agent 3",
       "tag": "copilot",
       "provider": "copilot",
       "model": "gpt-4.1",
-      "systemPrompt": ["./prompts/base.md"],
-      "permissions": "full-access"
+      "systemPrompt": ["./prompts/base.md"]
     },
     {
       "name": "Agent 4",
       "tag": "codex",
       "provider": "codex",
       "model": "gpt-5.2",
-      "systemPrompt": ["./prompts/base.md"],
-      "permissions": "full-access",
+      "systemPrompt": ["./prompts/base.md", "./prompts/pila.md"],
       "executablePath": "/opt/homebrew/bin/codex"
     }
   ]

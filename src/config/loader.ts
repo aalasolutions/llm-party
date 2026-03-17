@@ -48,9 +48,6 @@ function validateConfig(data: unknown): AppConfig {
       }
     }
 
-    if (agent.permissions !== undefined && !["full-access", "read-only"].includes(agent.permissions)) {
-      throw new Error(`Agent '${agent.name}' has invalid permissions '${agent.permissions}'`);
-    }
   }
 
   return cfg as unknown as AppConfig;

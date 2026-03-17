@@ -13,7 +13,6 @@ export interface PersonaConfig {
   provider: "claude" | "copilot" | "codex" | "glm";
   model: string;
   systemPrompt: string | string[];
-  permissions: "full-access" | "read-only";
   env?: Record<string, string>;
   executablePath?: string;
 }
