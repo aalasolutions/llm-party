@@ -24,7 +24,7 @@ export async function runTerminal(orchestrator: Orchestrator, options: TerminalO
 
   output.write(
     chalk.cyan(
-      `llms-party Phase 1 started. Commands: /agents, /history, /save <path>, /session, /changes, /exit. Tags: ${tags}\n`
+      `llm-party Phase 1 started. Commands: /agents, /history, /save <path>, /session, /changes, /exit. Tags: ${tags}\n`
     )
   );
   output.write(chalk.gray(`Session: ${orchestrator.getSessionId()}\n`));
@@ -136,8 +136,7 @@ async function getChangedFiles(): Promise<string[]> {
 
       const files = stdout
         .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.length > 3)
+        .filter((line) => line.length >= 4)
         .map((line) => line.slice(3).trim());
 
       resolve(Array.from(new Set(files)));
