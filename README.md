@@ -48,40 +48,68 @@ No MCP. No master/servant. No window juggling. Just peers at a terminal table.
 
 ## Getting started
 
-### Install and run
+### Prerequisites
+
+Node.js 20+ is required (22+ if using the Copilot provider, which depends on `node:sqlite`). Make sure at least one AI CLI is installed and authenticated:
+
+```bash
+claude --version        # Claude Code CLI
+codex --version         # OpenAI Codex CLI
+copilot --version       # GitHub Copilot CLI
+```
+
+If a CLI doesn't work on its own, it won't work inside llm-party.
+
+### Install
 
 ```bash
 npm install -g llm-party-cli
+```
+
+### First run
+
+```bash
 llm-party
 ```
 
-That's it. Agents use your current working directory. Config defaults are included in the package.
+On first run, llm-party creates `~/.llm-party/` with a default config and base prompt. Your system username is detected automatically. A single Claude agent is configured out of the box.
 
-### Set up your agents
+To re-run setup or reset your config:
 
-Edit `configs/default.json`. Each agent needs a name, provider, and model:
+```bash
+llm-party --init
+```
+
+### Add more agents
+
+Edit `~/.llm-party/config.json`:
 
 ```json
 {
-  "humanName": "YOUR NAME",
   "agents": [
     {
       "name": "Claude",
       "tag": "claude",
       "provider": "claude",
-      "model": "opus",
-      "systemPrompt": ["./prompts/base.md"]
+      "model": "opus"
     },
     {
       "name": "Codex",
       "tag": "codex",
       "provider": "codex",
-      "model": "gpt-5.2",
-      "systemPrompt": ["./prompts/base.md"]
+      "model": "gpt-5.2"
+    },
+    {
+      "name": "Copilot",
+      "tag": "copilot",
+      "provider": "copilot",
+      "model": "gpt-4.1"
     }
   ]
 }
 ```
+
+That's it. No paths, no prompts, no usernames to configure. Just name, tag, provider, model.
 
 ### Talk to your agents
 
@@ -100,21 +128,13 @@ Agents can pass the conversation to each other by ending their response with `@n
 
 <br/>
 
-## Before you start
+## Important notes
 
-**Verify your CLIs work first.** Before adding an agent to `configs/default.json`, make sure its CLI is installed and authenticated:
-
-```bash
-claude --version        # Claude Code CLI
-codex --version         # OpenAI Codex CLI
-copilot --version       # GitHub Copilot CLI
-```
-
-If a CLI doesn't work on its own, it won't work inside llm-party.
-
-**No extra API tokens.** llm-party uses the original CLIs and SDKs under the hood. Your existing authentication and subscriptions are used directly. Sessions created by agents appear in each tool's native session history (Claude Code sessions, Codex threads, etc.) since the underlying SDKs manage their own persistence.
+**No extra API tokens.** llm-party uses the original CLIs and SDKs under the hood. Your existing authentication and subscriptions are used directly. Sessions created by agents appear in each tool's native session history (Claude Code sessions, Codex threads, etc.).
 
 **Run in isolation.** Always run llm-party inside a disposable environment: a Docker container, a VM, or at minimum a throwaway git branch. Agents have full filesystem and shell access with zero approval gates.
+
+**Full permissions.** All agents can read, write, edit files and execute shell commands. There is no confirmation step before any action. You are responsible for any changes, data loss, costs, or side effects.
 
 <br/>
 
@@ -128,16 +148,18 @@ llm-party uses **official, publicly available SDKs and CLIs** published by each 
 | Codex | [`@openai/codex-sdk`](https://www.npmjs.com/package/@openai/codex-sdk) | OpenAI |
 | Copilot | [`@github/copilot-sdk`](https://www.npmjs.com/package/@github/copilot-sdk) | GitHub |
 
-All authentication flows through the provider's own CLI login. Your API keys, OAuth tokens, and subscriptions are used as-is. llm-party does not store, proxy, or intercept credentials.
+All authentication flows through the provider's own CLI login. llm-party does not store, proxy, or intercept credentials.
 
 If any provider believes this project violates their terms of service, please [open an issue](https://github.com/aalasolutions/llm-party/issues) and we will address it immediately.
 
+<br/>
+
 ## Supported providers
 
-| Provider | SDK | Session | System Prompt |
+| Provider | SDK | Session | Prompt Support |
 |----------|-----|---------|---------------|
 | **Claude** | `@anthropic-ai/claude-agent-sdk` | Persistent via session ID resume | Full control |
-| **Codex** | `@openai/codex-sdk` | Persistent thread with `run()` turns | Via `developer_instructions` (see limitations) |
+| **Codex** | `@openai/codex-sdk` | Persistent thread with `run()` turns | Via `developer_instructions` (limitations below) |
 | **Copilot** | `@github/copilot-sdk` | Persistent via `sendAndWait()` | Full control |
 | **GLM** | Claude SDK + env proxy | Same as Claude | Full control |
 
@@ -148,8 +170,6 @@ If any provider believes this project violates their terms of service, please [o
 <br/>
 
 ## How it works
-
-Most multi-agent setups use MCP (one agent controls others) or CLI wrapping (spawn processes and scrape terminal output). Both are fragile and hierarchical.
 
 llm-party uses SDK adapters directly. Each agent gets a persistent session with its provider. Full tool access. Real conversation threading. The orchestrator owns routing, agents are peers.
 
@@ -172,6 +192,8 @@ Orchestrator
 
 Each agent receives a rolling window of recent messages (default 16) plus any unseen messages since its last turn. Messages from other agents are included so everyone sees the full multi-party conversation.
 
+`~/.llm-party/config.json` is your global config. `base.md` is always loaded first for every agent. The `prompts` field in config adds extra prompt files on top of it.
+
 <br/>
 
 ## Provider details
@@ -182,11 +204,8 @@ Each agent receives a rolling window of recent messages (default 16) plus any un
 |---|---|
 | SDK | `@anthropic-ai/claude-agent-sdk` |
 | Session | Persistent via `resume: sessionId`. First call creates a session, subsequent calls resume it. |
-| System prompt | Passed directly to the SDK via `options.systemPrompt`. Full control. |
+| Prompt | Passed directly to the SDK. Full control over personality, behavior, and workflow rules. |
 | Tools | Read, Write, Edit, Bash, Glob, Grep |
-| Permissions | `permissionMode: "bypassPermissions"` (all tools auto-approved) |
-
-System prompt works exactly as expected. Personality, behavior, workflow rules all respected.
 
 ### Codex
 
@@ -194,109 +213,101 @@ System prompt works exactly as expected. Personality, behavior, workflow rules a
 |---|---|
 | SDK | `@openai/codex-sdk` |
 | Session | Persistent thread. `startThread()` creates it, `thread.run()` adds turns to the same conversation. |
-| System prompt | Injected via `developer_instructions` config key, passed as `--config` flag to the CLI subprocess. |
-| Tools | exec_command, apply_patch, file operations (Codex built-in toolset) |
-| Permissions | `sandboxMode: "danger-full-access"`, `approvalPolicy: "never"` |
+| Prompt | Injected via `developer_instructions` config key. Appended alongside Codex's built-in 13k token system prompt. |
+| Tools | exec_command, apply_patch, file operations |
 
-**Known limitation:** Codex ships with a massive built-in system prompt (~13k tokens) that cannot be overridden. Your `developer_instructions` are appended alongside it, not replacing it. This means:
-
-- **Works:** Action instructions (create files, follow naming conventions), formatting rules (prefix responses with agent name), workflow rules (handoff syntax, routing tags)
-- **Does not work:** Personality overrides, identity changes, behavioral rewrites
-
-We tested `instructions`, `developer_instructions`, and `experimental_instructions_file`. All three append to the built-in prompt. None replace it.
-
-**Also observed:** Codex is aggressive with file operations. When asked to "create your file," it read the orchestrator source code, ran the Codex CLI, and modified `src/ui/terminal.ts` instead of just creating a simple markdown file.
+**Known limitation:** Codex's built-in system prompt cannot be overridden. Your instructions are appended alongside it. Action instructions (naming, formatting, workflow rules) work. Personality overrides do not.
 
 ### Copilot
 
 | | |
 |---|---|
 | SDK | `@github/copilot-sdk` |
-| Session | Persistent via `CopilotClient.createSession()`. Messages sent with `session.sendAndWait()`. |
-| System prompt | Set as `systemMessage: { content: prompt }` on session creation. |
+| Session | Persistent via `CopilotClient.createSession()`. |
+| Prompt | Set as `systemMessage` on session creation. Full control. |
 | Tools | Copilot built-in toolset |
-| Permissions | `onPermissionRequest: approveAll` (all actions auto-approved) |
-
-System prompt works as expected.
 
 ### GLM
 
 | | |
 |---|---|
 | SDK | `@anthropic-ai/claude-agent-sdk` (same as Claude) |
-| Session | Same as Claude, but routed through a proxy. |
-| System prompt | Same as Claude. Full control. |
+| Session | Same as Claude, routed through a proxy via env overrides. |
+| Prompt | Same as Claude. Full control. |
 | Tools | Same as Claude |
-| Permissions | Same as Claude |
 
-GLM is not tied to any specific CLI. It uses the Claude SDK as the transport layer because Claude Code supports environment variable overrides for base URL and model aliases, making it a convenient proxy bridge. Any CLI that supports similar env-based routing could be swapped in.
+GLM uses the Claude SDK as a transport layer. The adapter routes API calls through a proxy by setting `ANTHROPIC_BASE_URL` and model aliases via the `env` config field.
 
 <br/>
 
 ## Config reference
 
-Config file: `configs/default.json`. Override with `LLM_PARTY_CONFIG` env var.
+Config file: `~/.llm-party/config.json` (created on first run).
+
+Override with `LLM_PARTY_CONFIG` env var to point to a different file.
 
 ### Top-level fields
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `humanName` | No | `USER` | Your name displayed in the terminal prompt and passed to agents |
-| `humanTag` | No | derived from `humanName` | Tag used for human handoff detection. When an agent says `@next:you`, the orchestrator stops and returns control to you |
-| `maxAutoHops` | No | `15` | Max agent-to-agent handoffs per cycle. Prevents infinite loops. Use `"unlimited"` to remove the cap |
-| `timeout` | No | `600` | Default timeout in seconds for all agents. 10 minutes by default |
-| `agents` | Yes | | Array of agent definitions. Must have at least one |
+| `humanName` | No | Your system username | Display name in the terminal prompt and passed to agents |
+| `humanTag` | No | derived from `humanName` | Tag for human handoff detection (`@next:you`) |
+| `maxAutoHops` | No | `15` | Max agent-to-agent handoffs per cycle. Use `"unlimited"` to remove the cap |
+| `timeout` | No | `600` | Default timeout in seconds for all agents |
+| `agents` | Yes | | Array of agent definitions |
 
 ### Agent fields
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `name` | Yes | | Display name shown in responses as `[AGENT NAME]` |
-| `tag` | No | derived from `name` | Routing tag for `@tag` targeting. Auto-generated as lowercase with dashes if omitted |
+| `tag` | No | derived from `name` | Routing tag for `@tag` targeting |
 | `provider` | Yes | | SDK adapter: `claude`, `codex`, `copilot`, or `glm` |
 | `model` | Yes | | Model ID passed to the provider. Examples: `opus`, `sonnet`, `gpt-5.2`, `gpt-4.1`, `glm-5` |
-| `systemPrompt` | Yes | | Path or array of paths to prompt markdown files. Relative to project root |
-| `executablePath` | No | PATH lookup | Path to the CLI binary. Supports `~/` for home directory. Only needed if the CLI is not in your PATH |
-| `env` | No | inherits `process.env` | Environment variable overrides for this agent's process |
-| `timeout` | No | top-level value | Per-agent timeout in seconds. Overrides the top-level default |
+| `prompts` | No | none | Array of extra prompt file paths, concatenated after `base.md`. Relative to project root |
+| `executablePath` | No | PATH lookup | Path to the CLI binary. Supports `~/`. Only needed if the CLI is not in your PATH |
+| `env` | No | inherits `process.env` | Environment variable overrides for this agent |
+| `timeout` | No | top-level value | Per-agent timeout override in seconds |
 
-### System prompts
+### Prompts
 
-Single file or multiple files merged in order:
+`base.md` is always loaded first for every agent. It defines orchestrator rules, routing syntax, handoff protocol, and team context. It lives at `~/.llm-party/base.md` (copied from the package on first run).
+
+To add extra instructions per agent, use the `prompts` field:
 
 ```json
-"systemPrompt": "./prompts/base.md"
-"systemPrompt": ["./prompts/base.md", "./prompts/reviewer.md"]
+{
+  "name": "Reviewer",
+  "tag": "reviewer",
+  "provider": "claude",
+  "model": "opus",
+  "prompts": ["./prompts/code-review.md"]
+}
 ```
 
-Files are concatenated with `---` separators, then template variables are replaced. Available variables:
+The final prompt sent to the agent is: `base.md` + `prompts[0]` + `prompts[1]` + ... joined with `---` separators. Template variables are rendered after concatenation:
 
 | Variable | Description |
 |----------|-------------|
 | `{{agentName}}` | This agent's display name |
 | `{{agentTag}}` | This agent's routing tag |
-| `{{humanName}}` | The human's display name |
-| `{{humanTag}}` | The human's routing tag |
+| `{{humanName}}` | Your display name |
+| `{{humanTag}}` | Your routing tag |
 | `{{agentCount}}` | Total number of active agents |
-| `{{allAgentNames}}` | All agent names, comma-separated |
+| `{{allAgentNames}}` | All agent names |
 | `{{allAgentTags}}` | All agent tags as `@tag` |
-| `{{otherAgentList}}` | Other agents formatted as `- Name: use @tag` |
-| `{{otherAgentNames}}` | Other agent names, comma-separated |
-| `{{validHandoffTargets}}` | Valid `@next:tag` values for handoff |
+| `{{otherAgentList}}` | Other agents with their tags |
+| `{{validHandoffTargets}}` | Valid `@next:tag` targets |
 
 ### GLM environment setup
 
-GLM requires environment overrides to route through a proxy. The adapter first tries to load env variables from your shell `glm` alias (`zsh -ic "alias glm"`). If you have a `glm` alias that sets `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_BASE_URL`, it picks those up automatically.
-
-Without the alias, provide everything in the `env` block:
+GLM requires environment overrides to route through a proxy. The adapter first tries to load env variables from your shell `glm` alias. Without the alias, provide everything in the `env` block:
 
 ```json
 {
-  "name": "GLM Agent",
+  "name": "GLM",
   "provider": "glm",
   "model": "glm-5",
-  "systemPrompt": ["./prompts/base.md"],
-  "executablePath": "~/.local/bin/claude",
   "env": {
     "ANTHROPIC_AUTH_TOKEN": "your-glm-api-key",
     "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
@@ -311,11 +322,9 @@ Without the alias, provide everything in the `env` block:
 
 ## Session and transcript
 
-Every run generates a unique session ID and appends messages to a JSONL transcript file under `.llm-party/sessions/`. The session ID and transcript path are printed at startup.
+Every run generates a unique session ID and appends messages to a JSONL transcript in `.llm-party/sessions/` (project-level). The session ID and transcript path are printed at startup.
 
-File changes made by agents during their turns are detected via `git status` after each response cycle. Newly modified files are printed with timestamps.
-
-Use `/save <path>` to export the full in-memory conversation as formatted JSON.
+File changes made by agents are detected via `git status` after each response. Newly modified files are printed with timestamps.
 
 <br/>
 
@@ -341,14 +350,14 @@ npm install
 npm run dev
 ```
 
-Build and run from dist:
+Build and run:
 
 ```bash
 npm run build
 npm start
 ```
 
-Override config path:
+Override config:
 
 ```bash
 LLM_PARTY_CONFIG=/path/to/config.json npm run dev
@@ -358,31 +367,23 @@ LLM_PARTY_CONFIG=/path/to/config.json npm run dev
 
 ## Troubleshooting
 
-**"ENOENT for prompt path"**
-Your `systemPrompt` points to a file that does not exist. Paths are relative to project root. Verify with `ls prompts/`.
-
 **"No agent matched @tag"**
-The tag you typed does not match any agent's `tag`, `name`, or `provider`. Run `/agents` to see what is available.
+Run `/agents` to see available tags. Tags match against agent `tag`, `name`, and `provider`.
 
 **"Unsupported provider"**
-Your config has a provider value that is not one of: `claude`, `codex`, `copilot`, `glm`.
+Valid providers: `claude`, `codex`, `copilot`, `glm`.
 
 **Agent modifies source code unexpectedly**
-Expected behavior with full-access permissions. Agents can read, write, and execute anything. Use git to review and revert. Codex in particular is aggressive with file operations.
+Expected with full permissions. Use git to review and revert.
 
 **Codex ignores personality instructions**
-Known limitation. Codex has a 13k+ token built-in system prompt that overrides personality and identity instructions. Functional instructions (naming, workflow, formatting) still work.
+Known limitation. Codex's 13k token built-in prompt overrides personality. Functional instructions still work.
+
+**"ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite"**
+Your Node.js version is below 22. The Copilot SDK requires Node.js 22+.
 
 **Agent response timeout**
-Claude and Copilot have a 120-second timeout. GLM has 240 seconds. If an agent consistently times out, check your API keys and network connectivity.
-
-<br/>
-
-## Warning
-
-All agents run with **full permissions**. They can read, write, edit files and execute shell commands. There is no confirmation step before any action.
-
-You are responsible for any changes, data loss, costs, or side effects. Do not run against production systems or repos you cannot recover from.
+Default is 600 seconds (10 minutes). Adjust with `timeout` in config (top-level or per-agent).
 
 <br/>
 
