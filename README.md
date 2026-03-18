@@ -4,8 +4,8 @@
     <strong>Bring your models. We'll bring the party.</strong>
   </p>
   <p align="center">
-    <a href="https://llm-party.party">Website</a> &middot;
-    <a href="https://www.npmjs.com/package/llm-party-cli">npm</a> &middot;
+    <a href="https://llm-party.party">Website</a> ·
+    <a href="https://www.npmjs.com/package/llm-party-cli">npm</a> ·
     <a href="https://github.com/aalasolutions/llm-party">GitHub</a>
   </p>
   <p align="center">
@@ -36,13 +36,13 @@ No MCP. No master/servant. No window juggling. Just peers at a terminal table.
 
 ## Why llm-party?
 
-| | Traditional multi-agent | llm-party |
-|---|---|---|
-| **Architecture** | MCP (master controls servants) | Peer orchestration (you control all) |
-| **Integration** | CLI wrapping, output scraping | Direct SDK adapters |
-| **Sessions** | Fresh each time | Persistent per provider |
-| **Context** | Agents are siloed | Every agent sees the full conversation |
-| **API tokens** | Separate keys per tool | Uses your existing CLI auth |
+|                        | Traditional multi-agent        | llm-party                              |
+| ---------------------- | ------------------------------ | -------------------------------------- |
+| **Architecture** | MCP (master controls servants) | Peer orchestration (you control all)   |
+| **Integration**  | CLI wrapping, output scraping  | Direct SDK adapters                    |
+| **Sessions**     | Fresh each time                | Persistent per provider                |
+| **Context**      | Agents are siloed              | Every agent sees the full conversation |
+| **API tokens**   | Separate keys per tool         | Uses your existing CLI auth            |
 
 <br/>
 
@@ -126,13 +126,13 @@ That's it. No paths, no prompts, no usernames to configure. Just name, tag, prov
 
 Agents can pass the conversation to each other by ending their response with `@next:<tag>`. The orchestrator picks it up and dispatches automatically. Max 15 hops per cycle to prevent loops.
 
-<br/>
+## **WARNING: FULL AUTONOMY.**
 
-> **WARNING: FULL AUTONOMY.** All agents run with full permissions. They can read, write, edit files and execute shell commands with zero approval gates. There is no confirmation step before any action. Run in a disposable environment. You are responsible for any changes, data loss, costs, or side effects. Do not run against production systems.
+All agents run with full permissions. They can read, write, edit files and execute shell commands with zero approval gates. There is no confirmation step before any action. Run in a disposable environment. You are responsible for any changes, data loss, costs, or side effects. Do not run against production systems.
 
 ## Important notes
 
-**No extra API tokens.** llm-party uses the original CLIs and SDKs under the hood. Your existing authentication and subscriptions are used directly. Sessions created by agents appear in each tool's native session history (Claude Code sessions, Codex threads, etc.).
+**Uses your existing CLIs.** llm-party uses official SDKs that delegate to each provider's CLI binary. If `claude`, `codex`, or `copilot` commands work on your machine, llm-party works. Authentication is handled entirely by the provider's own tools.
 
 **Run in isolation.** Always run llm-party inside a disposable environment: a Docker container, a VM, or at minimum a throwaway git branch. Agents have full filesystem and shell access with zero approval gates.
 
@@ -144,26 +144,24 @@ Agents can pass the conversation to each other by ending their response with `@n
 
 llm-party uses **official, publicly available SDKs and CLIs** published by each provider. Nothing is reverse-engineered, patched, or bypassed.
 
-| Provider | Official SDK | Published by |
-|----------|-------------|-------------|
-| Claude | [`@anthropic-ai/claude-agent-sdk`](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) | Anthropic |
-| Codex | [`@openai/codex-sdk`](https://www.npmjs.com/package/@openai/codex-sdk) | OpenAI |
-| Copilot | [`@github/copilot-sdk`](https://www.npmjs.com/package/@github/copilot-sdk) | GitHub |
+| Provider | Official SDK                                                                                    | Published by |
+| -------- | ----------------------------------------------------------------------------------------------- | ------------ |
+| Claude   | [`@anthropic-ai/claude-agent-sdk`](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) | Anthropic    |
+| Codex    | [`@openai/codex-sdk`](https://www.npmjs.com/package/@openai/codex-sdk)                           | OpenAI       |
+| Copilot  | [`@github/copilot-sdk`](https://www.npmjs.com/package/@github/copilot-sdk)                       | GitHub       |
 
-All authentication flows through the provider's own CLI login. llm-party does not store, proxy, or intercept credentials.
-
-If any provider believes this project violates their terms of service, please [open an issue](https://github.com/aalasolutions/llm-party/issues) and we will address it immediately.
+All authentication flows through the provider's own CLI. llm-party does not implement its own auth flow, store credentials, or intercept authentication traffic.
 
 <br/>
 
 ## Supported providers
 
-| Provider | SDK | Session | Prompt Support |
-|----------|-----|---------|---------------|
-| **Claude** | `@anthropic-ai/claude-agent-sdk` | Persistent via session ID resume | Full control |
-| **Codex** | `@openai/codex-sdk` | Persistent thread with `run()` turns | Via `developer_instructions` (limitations below) |
-| **Copilot** | `@github/copilot-sdk` | Persistent via `sendAndWait()` | Full control |
-| **GLM** | Claude SDK + env proxy | Same as Claude | Full control |
+| Provider          | SDK                                | Session                                | Prompt Support                                     |
+| ----------------- | ---------------------------------- | -------------------------------------- | -------------------------------------------------- |
+| **Claude**  | `@anthropic-ai/claude-agent-sdk` | Persistent via session ID resume       | Full control                                       |
+| **Codex**   | `@openai/codex-sdk`              | Persistent thread with `run()` turns | Via `developer_instructions` (limitations below) |
+| **Copilot** | `@github/copilot-sdk`            | Persistent via `sendAndWait()`       | Full control                                       |
+| **GLM**     | Claude SDK + env proxy             | Same as Claude                         | Full control                                       |
 
 <br/>
 
@@ -202,41 +200,41 @@ Each agent receives a rolling window of recent messages (default 16) plus any un
 
 ### Claude
 
-| | |
-|---|---|
-| SDK | `@anthropic-ai/claude-agent-sdk` |
+|         |                                                                                                 |
+| ------- | ----------------------------------------------------------------------------------------------- |
+| SDK     | `@anthropic-ai/claude-agent-sdk`                                                              |
 | Session | Persistent via `resume: sessionId`. First call creates a session, subsequent calls resume it. |
-| Prompt | Passed directly to the SDK. Full control over personality, behavior, and workflow rules. |
-| Tools | Read, Write, Edit, Bash, Glob, Grep |
+| Prompt  | Passed directly to the SDK. Full control over personality, behavior, and workflow rules.        |
+| Tools   | Read, Write, Edit, Bash, Glob, Grep                                                             |
 
 ### Codex
 
-| | |
-|---|---|
-| SDK | `@openai/codex-sdk` |
-| Session | Persistent thread. `startThread()` creates it, `thread.run()` adds turns to the same conversation. |
-| Prompt | Injected via `developer_instructions` config key. Appended alongside Codex's built-in 13k token system prompt. |
-| Tools | exec_command, apply_patch, file operations |
+|         |                                                                                                                  |
+| ------- | ---------------------------------------------------------------------------------------------------------------- |
+| SDK     | `@openai/codex-sdk`                                                                                            |
+| Session | Persistent thread.`startThread()` creates it, `thread.run()` adds turns to the same conversation.            |
+| Prompt  | Injected via `developer_instructions` config key. Appended alongside Codex's built-in 13k token system prompt. |
+| Tools   | exec_command, apply_patch, file operations                                                                       |
 
 **Known limitation:** Codex's built-in system prompt cannot be overridden. Your instructions are appended alongside it. Action instructions (naming, formatting, workflow rules) work. Personality overrides do not.
 
 ### Copilot
 
-| | |
-|---|---|
-| SDK | `@github/copilot-sdk` |
-| Session | Persistent via `CopilotClient.createSession()`. |
-| Prompt | Set as `systemMessage` on session creation. Full control. |
-| Tools | Copilot built-in toolset |
+|         |                                                             |
+| ------- | ----------------------------------------------------------- |
+| SDK     | `@github/copilot-sdk`                                     |
+| Session | Persistent via `CopilotClient.createSession()`.           |
+| Prompt  | Set as `systemMessage` on session creation. Full control. |
+| Tools   | Copilot built-in toolset                                    |
 
 ### GLM
 
-| | |
-|---|---|
-| SDK | `@anthropic-ai/claude-agent-sdk` (same as Claude) |
+|         |                                                           |
+| ------- | --------------------------------------------------------- |
+| SDK     | `@anthropic-ai/claude-agent-sdk` (same as Claude)       |
 | Session | Same as Claude, routed through a proxy via env overrides. |
-| Prompt | Same as Claude. Full control. |
-| Tools | Same as Claude |
+| Prompt  | Same as Claude. Full control.                             |
+| Tools   | Same as Claude                                            |
 
 GLM uses the Claude SDK as a transport layer. The adapter routes API calls through a proxy by setting `ANTHROPIC_BASE_URL` and model aliases via the `env` config field.
 
@@ -250,26 +248,26 @@ Override with `LLM_PARTY_CONFIG` env var to point to a different file.
 
 ### Top-level fields
 
-| Field | Required | Default | Description |
-|-------|----------|---------|-------------|
-| `humanName` | No | Your system username | Display name in the terminal prompt and passed to agents |
-| `humanTag` | No | derived from `humanName` | Tag for human handoff detection (`@next:you`) |
-| `maxAutoHops` | No | `15` | Max agent-to-agent handoffs per cycle. Use `"unlimited"` to remove the cap |
-| `timeout` | No | `600` | Default timeout in seconds for all agents |
-| `agents` | Yes | | Array of agent definitions |
+| Field           | Required | Default                    | Description                                                                  |
+| --------------- | -------- | -------------------------- | ---------------------------------------------------------------------------- |
+| `humanName`   | No       | Your system username       | Display name in the terminal prompt and passed to agents                     |
+| `humanTag`    | No       | derived from `humanName` | Tag for human handoff detection (`@next:you`)                              |
+| `maxAutoHops` | No       | `15`                     | Max agent-to-agent handoffs per cycle. Use `"unlimited"` to remove the cap |
+| `timeout`     | No       | `600`                    | Default timeout in seconds for all agents                                    |
+| `agents`      | Yes      |                            | Array of agent definitions                                                   |
 
 ### Agent fields
 
-| Field | Required | Default | Description |
-|-------|----------|---------|-------------|
-| `name` | Yes | | Display name shown in responses as `[AGENT NAME]` |
-| `tag` | No | derived from `name` | Routing tag for `@tag` targeting |
-| `provider` | Yes | | SDK adapter: `claude`, `codex`, `copilot`, or `glm` |
-| `model` | Yes | | Model ID passed to the provider. Examples: `opus`, `sonnet`, `gpt-5.2`, `gpt-4.1`, `glm-5` |
-| `prompts` | No | none | Array of extra prompt file paths, concatenated after `base.md`. Relative to project root |
-| `executablePath` | No | PATH lookup | Path to the CLI binary. Supports `~/`. Only needed if the CLI is not in your PATH |
-| `env` | No | inherits `process.env` | Environment variable overrides for this agent |
-| `timeout` | No | top-level value | Per-agent timeout override in seconds |
+| Field              | Required | Default                  | Description                                                                                         |
+| ------------------ | -------- | ------------------------ | --------------------------------------------------------------------------------------------------- |
+| `name`           | Yes      |                          | Display name shown in responses as `[AGENT NAME]`                                                 |
+| `tag`            | No       | derived from `name`    | Routing tag for `@tag` targeting                                                                  |
+| `provider`       | Yes      |                          | SDK adapter:`claude`, `codex`, `copilot`, or `glm`                                          |
+| `model`          | Yes      |                          | Model ID passed to the provider. Examples:`opus`, `sonnet`, `gpt-5.2`, `gpt-4.1`, `glm-5` |
+| `prompts`        | No       | none                     | Array of extra prompt file paths, concatenated after `base.md`. Relative to project root          |
+| `executablePath` | No       | PATH lookup              | Path to the CLI binary. Supports `~/`. Only needed if the CLI is not in your PATH                 |
+| `env`            | No       | inherits `process.env` | Environment variable overrides for this agent                                                       |
+| `timeout`        | No       | top-level value          | Per-agent timeout override in seconds                                                               |
 
 ### Prompts
 
@@ -289,17 +287,17 @@ To add extra instructions per agent, use the `prompts` field:
 
 The final prompt sent to the agent is: `base.md` + `prompts[0]` + `prompts[1]` + ... joined with `---` separators. Template variables are rendered after concatenation:
 
-| Variable | Description |
-|----------|-------------|
-| `{{agentName}}` | This agent's display name |
-| `{{agentTag}}` | This agent's routing tag |
-| `{{humanName}}` | Your display name |
-| `{{humanTag}}` | Your routing tag |
-| `{{agentCount}}` | Total number of active agents |
-| `{{allAgentNames}}` | All agent names |
-| `{{allAgentTags}}` | All agent tags as `@tag` |
-| `{{otherAgentList}}` | Other agents with their tags |
-| `{{validHandoffTargets}}` | Valid `@next:tag` targets |
+| Variable                    | Description                   |
+| --------------------------- | ----------------------------- |
+| `{{agentName}}`           | This agent's display name     |
+| `{{agentTag}}`            | This agent's routing tag      |
+| `{{humanName}}`           | Your display name             |
+| `{{humanTag}}`            | Your routing tag              |
+| `{{agentCount}}`          | Total number of active agents |
+| `{{allAgentNames}}`       | All agent names               |
+| `{{allAgentTags}}`        | All agent tags as `@tag`    |
+| `{{otherAgentList}}`      | Other agents with their tags  |
+| `{{validHandoffTargets}}` | Valid `@next:tag` targets   |
 
 ### GLM environment setup
 
@@ -332,14 +330,14 @@ File changes made by agents are detected via `git status` after each response. N
 
 ## Terminal commands
 
-| Command | What it does |
-|---------|-------------|
-| `/agents` | List active agents with tag, provider, model |
-| `/history` | Print full conversation history |
-| `/save <path>` | Export conversation as JSON |
-| `/session` | Show session ID and transcript path |
-| `/changes` | Show git-modified files |
-| `/exit` | Quit |
+| Command          | What it does                                 |
+| ---------------- | -------------------------------------------- |
+| `/agents`      | List active agents with tag, provider, model |
+| `/history`     | Print full conversation history              |
+| `/save <path>` | Export conversation as JSON                  |
+| `/session`     | Show session ID and transcript path          |
+| `/changes`     | Show git-modified files                      |
+| `/exit`        | Quit                                         |
 
 <br/>
 
@@ -390,6 +388,6 @@ Default is 600 seconds (10 minutes). Adjust with `timeout` in config (top-level 
 <br/>
 
 <p align="center">
-  <a href="https://llm-party.party">llm-party.party</a> &middot;
+  <a href="https://llm-party.party">llm-party.party</a> ·
   Built by <a href="https://aalasolutions.com">AALA Solutions</a>
 </p>
