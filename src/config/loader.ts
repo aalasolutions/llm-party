@@ -1,4 +1,4 @@
-import { readFile, access, mkdir, copyFile } from "node:fs/promises";
+import { readFile, writeFile, access, mkdir } from "node:fs/promises";
 import { homedir, userInfo } from "node:os";
 import path from "node:path";
 import { AppConfig } from "../types.js";
@@ -80,52 +80,72 @@ export async function resolveConfigPath(appRoot: string): Promise<string> {
 }
 
 export async function resolveBasePrompt(appRoot: string): Promise<string> {
-  const globalBase = path.join(LLM_PARTY_HOME, "base.md");
-  try {
-    await access(globalBase);
-    return await readFile(globalBase, "utf8");
-  } catch {
-    // fall through to bundled
-  }
-
   const bundledBase = path.join(appRoot, "prompts", "base.md");
   return await readFile(bundledBase, "utf8");
+}
+
+export async function resolveArtifactsPrompt(appRoot: string): Promise<string> {
+  const bundledArtifacts = path.join(appRoot, "prompts", "artifacts.md");
+  return await readFile(bundledArtifacts, "utf8");
+}
+
+export async function initProjectFolder(cwd: string): Promise<void> {
+  const projectHome = path.join(cwd, ".llm-party");
+  const memoryDir = path.join(projectHome, "memory");
+  const skillsDir = path.join(projectHome, "skills");
+
+  await mkdir(memoryDir, { recursive: true });
+  await mkdir(skillsDir, { recursive: true });
+
+  const tasksFile = path.join(projectHome, "TASKS.md");
+  try {
+    await access(tasksFile);
+  } catch {
+    await writeFile(tasksFile, "# Tasks\n", "utf8");
+  }
+
+  const projectMd = path.join(memoryDir, "project.md");
+  try {
+    await access(projectMd);
+  } catch {
+    await writeFile(projectMd, "# Project Memory\n\n## Current State\n\nLast Updated:\nActive:\nBlockers:\nNext:\n\n---\n\n## Log\n", "utf8");
+  }
+
+  const decisionsMd = path.join(memoryDir, "decisions.md");
+  try {
+    await access(decisionsMd);
+  } catch {
+    await writeFile(decisionsMd, "# Decisions\n", "utf8");
+  }
 }
 
 export async function initLlmPartyHome(appRoot: string): Promise<void> {
   await mkdir(LLM_PARTY_HOME, { recursive: true });
   await mkdir(path.join(LLM_PARTY_HOME, "sessions"), { recursive: true });
+  await mkdir(path.join(LLM_PARTY_HOME, "network"), { recursive: true });
+  await mkdir(path.join(LLM_PARTY_HOME, "agents"), { recursive: true });
 
-  const globalBase = path.join(LLM_PARTY_HOME, "base.md");
+  const projectsYml = path.join(LLM_PARTY_HOME, "network", "projects.yml");
   try {
-    await access(globalBase);
+    await access(projectsYml);
   } catch {
-    const bundledBase = path.join(appRoot, "prompts", "base.md");
-    await copyFile(bundledBase, globalBase);
+    await writeFile(projectsYml, "projects: []\n", "utf8");
+  }
+
+  const librariesYml = path.join(LLM_PARTY_HOME, "network", "libraries.yml");
+  try {
+    await access(librariesYml);
+  } catch {
+    await writeFile(librariesYml, "libraries: []\n", "utf8");
   }
 
   const globalConfig = path.join(LLM_PARTY_HOME, "config.json");
   try {
     await access(globalConfig);
   } catch {
-    const username = userInfo().username || "USER";
-    const defaultConfig = {
-      humanName: username,
-      agents: [
-        {
-          name: "Claude",
-          tag: "claude",
-          provider: "claude",
-          model: "sonnet"
-        }
-      ]
-    };
-    const { writeFile } = await import("node:fs/promises");
-    await writeFile(globalConfig, JSON.stringify(defaultConfig, null, 2) + "\n", "utf8");
+    const bundledConfig = await readFile(path.join(appRoot, "configs", "default.json"), "utf8");
+    await writeFile(globalConfig, bundledConfig, "utf8");
   }
-
-  console.log(`Initialized ~/.llm-party/`);
-  console.log(`  config: ${globalConfig}`);
 }
 
 export async function loadConfig(configPath: string): Promise<AppConfig> {
