@@ -5,6 +5,7 @@ import chalk from "chalk";
 import { Orchestrator } from "../orchestrator.js";
 import { ConversationMessage } from "../types.js";
 import { initProjectFolder } from "../config/loader.js";
+import { formatAgentLabel } from "../utils.js";
 
 interface TerminalOptions {
   maxAutoHops?: number;
@@ -14,6 +15,13 @@ export async function runTerminal(orchestrator: Orchestrator, options: TerminalO
   const rl = readline.createInterface({ input, output });
   const humanName = orchestrator.getHumanName();
   const tags = formatTagHints(orchestrator);
+  const agentProviders = new Map(
+    orchestrator.listAgents().map((a) => [a.name.toUpperCase(), a.provider])
+  );
+  const labelFor = (from: string): string => {
+    const provider = agentProviders.get(from);
+    return provider ? formatAgentLabel(from, provider) : from;
+  };
   let lastTargets: string[] | undefined;
   let knownChangedFiles = await getChangedFiles();
   let projectFolderReady = false;
@@ -67,7 +75,7 @@ export async function runTerminal(orchestrator: Orchestrator, options: TerminalO
     if (line === "/history") {
       const history = orchestrator.getHistory();
       for (const msg of history) {
-        output.write(`${chalk.gray(msg.createdAt)} ${chalk.yellow("[" + msg.from + "]")} ${msg.text}\n`);
+        output.write(`${chalk.gray(msg.createdAt)} ${chalk.yellow("[" + labelFor(msg.from) + "]")} ${msg.text}\n`);
       }
       continue;
     }
@@ -135,6 +143,7 @@ export async function runTerminal(orchestrator: Orchestrator, options: TerminalO
     knownChangedFiles = await dispatchWithHandoffs(
       orchestrator,
       output,
+      labelFor,
       targets,
       knownChangedFiles,
       options.maxAutoHops ?? 15
@@ -165,6 +174,7 @@ async function getChangedFiles(): Promise<string[]> {
 async function dispatchWithHandoffs(
   orchestrator: Orchestrator,
   out: NodeJS.WriteStream,
+  labelFor: (from: string) => string,
   initialTargets?: string[],
   previousChangedFiles: string[] = [],
   maxHops = 15
@@ -180,7 +190,7 @@ async function dispatchWithHandoffs(
     const batch: ConversationMessage[] = [];
     await orchestrator.fanOutWithProgress(targets, (msg) => {
       batch.push(msg);
-      out.write(chalk.magenta(`[${msg.from}]`) + ` ${msg.text}\n\n`);
+      out.write(chalk.magenta(`[${labelFor(msg.from)}]`) + ` ${msg.text}\n\n`);
     });
 
     const latestChangedFiles = await getChangedFiles();

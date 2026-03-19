@@ -6,3 +6,7 @@ export function toTag(value: string): string {
   const compact = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return compact || "agent";
 }
+
+export function formatAgentLabel(name: string, provider: string): string {
+  return `${name} · ${provider}`;
+}
