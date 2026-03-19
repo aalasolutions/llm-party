@@ -10,6 +10,7 @@ import { GlmAdapter } from "./adapters/glm.js";
 import { loadConfig, resolveConfigPath, resolveBasePrompt, resolveArtifactsPrompt, initLlmPartyHome } from "./config/loader.js";
 import { Orchestrator } from "./orchestrator.js";
 import { runTerminal } from "./ui/terminal.js";
+import { toTag } from "./utils.js";
 
 async function main(): Promise<void> {
   const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -125,11 +126,6 @@ function renderPromptTemplate(template: string, variables: Record<string, string
   return template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, key: string) => {
     return variables[key] ?? "";
   });
-}
-
-function toTag(value: string): string {
-  const compact = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-  return compact || "agent";
 }
 
 main().catch((err) => {
