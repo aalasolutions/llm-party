@@ -18,10 +18,20 @@ export async function runTerminal(orchestrator: Orchestrator, options: TerminalO
   let knownChangedFiles = await getChangedFiles();
   let projectFolderReady = false;
 
-  process.on("SIGINT", () => {
+  async function gracefulShutdown(): Promise<void> {
+    output.write(chalk.gray("\nShutting down adapters...\n"));
+    const adapters = orchestrator.getAdapters();
+    await Promise.allSettled(adapters.map((a) => a.destroy()));
     rl.close();
-    output.write("\n");
     process.exit(0);
+  }
+
+  process.on("SIGINT", () => {
+    gracefulShutdown();
+  });
+
+  process.on("SIGTERM", () => {
+    gracefulShutdown();
   });
 
   output.write(
@@ -50,6 +60,7 @@ export async function runTerminal(orchestrator: Orchestrator, options: TerminalO
     }
 
     if (line === "/exit") {
+      await gracefulShutdown();
       break;
     }
 
@@ -126,7 +137,7 @@ export async function runTerminal(orchestrator: Orchestrator, options: TerminalO
       output,
       targets,
       knownChangedFiles,
-      options.maxAutoHops ?? 6
+      options.maxAutoHops ?? 15
     );
   }
 
@@ -144,7 +155,7 @@ async function getChangedFiles(): Promise<string[]> {
       const files = stdout
         .split("\n")
         .filter((line) => line.length >= 4)
-        .map((line) => line.slice(3).trim());
+        .map((line) => line.slice(3));
 
       resolve(Array.from(new Set(files)));
     });
@@ -156,7 +167,7 @@ async function dispatchWithHandoffs(
   out: NodeJS.WriteStream,
   initialTargets?: string[],
   previousChangedFiles: string[] = [],
-  maxHops = 6
+  maxHops = 15
 ): Promise<string[]> {
   let targets = initialTargets;
   let hops = 0;
