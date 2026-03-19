@@ -119,15 +119,11 @@ export async function runTerminal(orchestrator: Orchestrator, options: TerminalO
     }
 
     const routing = parseRouting(line);
-    const matchedTags = new Set<string>();
     const resolvedAgents: string[] = [];
 
     for (const mention of routing.mentions) {
       const resolved = orchestrator.resolveTargets(mention);
-      if (resolved.length > 0) {
-        matchedTags.add(mention);
-        resolvedAgents.push(...resolved);
-      }
+      resolvedAgents.push(...resolved);
     }
 
     const explicitTargets = resolvedAgents.length > 0
@@ -144,10 +140,7 @@ export async function runTerminal(orchestrator: Orchestrator, options: TerminalO
       projectFolderReady = true;
     }
 
-    const message = matchedTags.size > 0
-      ? stripMatchedTags(routing.raw, matchedTags)
-      : routing.raw;
-    const userMessage = orchestrator.addUserMessage(message);
+    const userMessage = orchestrator.addUserMessage(routing.raw);
     await orchestrator.appendTranscript(userMessage);
 
     knownChangedFiles = await dispatchWithHandoffs(
@@ -299,11 +292,3 @@ function parseRouting(line: string): { mentions: string[]; raw: string } {
   return { mentions, raw: line };
 }
 
-function stripMatchedTags(line: string, matchedTags: Set<string>): string {
-  return line
-    .replace(/(^|[^A-Za-z0-9_-])@([A-Za-z0-9_-]+)\b/g, (_match, prefix, tag) => {
-      return matchedTags.has(tag.toLowerCase()) ? (prefix || "") : _match;
-    })
-    .replace(/\s{2,}/g, " ")
-    .trim();
-}
