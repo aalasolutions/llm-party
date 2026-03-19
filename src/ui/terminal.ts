@@ -119,13 +119,20 @@ export async function runTerminal(orchestrator: Orchestrator, options: TerminalO
     }
 
     const routing = parseRouting(line);
-    const explicitTargets = routing.targets && routing.targets.length > 0
-      ? Array.from(new Set(routing.targets.flatMap((target) => orchestrator.resolveTargets(target))))
-      : undefined;
-    if (routing.targets && routing.targets.length > 0 && (!explicitTargets || explicitTargets.length === 0)) {
-      output.write(chalk.red(`No agent matched ${routing.targets.map((target) => `@${target}`).join(", ")}. Use /agents to list names/providers.\n`));
-      continue;
+    const matchedTags = new Set<string>();
+    const resolvedAgents: string[] = [];
+
+    for (const mention of routing.mentions) {
+      const resolved = orchestrator.resolveTargets(mention);
+      if (resolved.length > 0) {
+        matchedTags.add(mention);
+        resolvedAgents.push(...resolved);
+      }
     }
+
+    const explicitTargets = resolvedAgents.length > 0
+      ? Array.from(new Set(resolvedAgents))
+      : undefined;
 
     const targets = explicitTargets ?? lastTargets;
     if (explicitTargets && explicitTargets.length > 0) {
@@ -137,7 +144,10 @@ export async function runTerminal(orchestrator: Orchestrator, options: TerminalO
       projectFolderReady = true;
     }
 
-    const userMessage = orchestrator.addUserMessage(routing.message);
+    const message = matchedTags.size > 0
+      ? stripMatchedTags(routing.raw, matchedTags)
+      : routing.raw;
+    const userMessage = orchestrator.addUserMessage(message);
     await orchestrator.appendTranscript(userMessage);
 
     knownChangedFiles = await dispatchWithHandoffs(
@@ -277,34 +287,23 @@ function extractNextSelectors(messages: ConversationMessage[]): string[] {
   return selectors;
 }
 
-function parseRouting(line: string): { targets?: string[]; message: string } {
-  const normalizedStart = line.replace(/^[^A-Za-z0-9@_-]+/, "");
-  const startMatch = normalizedStart.match(/^@([A-Za-z0-9_-]+)[\.,:;!?-]*\s+([\s\S]+)$/);
-  if (startMatch) {
-    return {
-      targets: [startMatch[1].toLowerCase()],
-      message: startMatch[2].trim()
-    };
-  }
-
+function parseRouting(line: string): { mentions: string[]; raw: string } {
   const mentionRegex = /(^|[^A-Za-z0-9_-])@([A-Za-z0-9_-]+)\b/g;
-  const targets: string[] = [];
-  let stripped = line;
+  const mentions: string[] = [];
   let match: RegExpExecArray | null = null;
 
   while ((match = mentionRegex.exec(line)) !== null) {
-    targets.push(match[2].toLowerCase());
+    mentions.push(match[2].toLowerCase());
   }
 
-  if (targets.length === 0) {
-    return { message: line };
-  }
+  return { mentions, raw: line };
+}
 
-  stripped = stripped.replace(/(^|[^A-Za-z0-9_-])@([A-Za-z0-9_-]+)\b/g, (full, prefix) => prefix || "");
-  stripped = stripped.replace(/\s{2,}/g, " ").trim();
-
-  return {
-    targets,
-    message: stripped || line
-  };
+function stripMatchedTags(line: string, matchedTags: Set<string>): string {
+  return line
+    .replace(/(^|[^A-Za-z0-9_-])@([A-Za-z0-9_-]+)\b/g, (_match, prefix, tag) => {
+      return matchedTags.has(tag.toLowerCase()) ? (prefix || "") : _match;
+    })
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
