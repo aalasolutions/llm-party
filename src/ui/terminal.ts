@@ -4,6 +4,7 @@ import { stdin as input, stdout as output } from "node:process";
 import chalk from "chalk";
 import { Orchestrator } from "../orchestrator.js";
 import { ConversationMessage } from "../types.js";
+import { initProjectFolder } from "../config/loader.js";
 
 interface TerminalOptions {
   maxAutoHops?: number;
@@ -15,6 +16,7 @@ export async function runTerminal(orchestrator: Orchestrator, options: TerminalO
   const tags = formatTagHints(orchestrator);
   let lastTargets: string[] | undefined;
   let knownChangedFiles = await getChangedFiles();
+  let projectFolderReady = false;
 
   process.on("SIGINT", () => {
     rl.close();
@@ -109,6 +111,11 @@ export async function runTerminal(orchestrator: Orchestrator, options: TerminalO
     const targets = explicitTargets ?? lastTargets;
     if (explicitTargets && explicitTargets.length > 0) {
       lastTargets = explicitTargets;
+    }
+
+    if (!projectFolderReady) {
+      await initProjectFolder(process.cwd());
+      projectFolderReady = true;
     }
 
     const userMessage = orchestrator.addUserMessage(routing.message);

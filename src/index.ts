@@ -7,25 +7,14 @@ import { ClaudeAdapter } from "./adapters/claude.js";
 import { CodexAdapter } from "./adapters/codex.js";
 import { CopilotAdapter } from "./adapters/copilot.js";
 import { GlmAdapter } from "./adapters/glm.js";
-import { loadConfig, resolveConfigPath, resolveBasePrompt, initLlmPartyHome, LLM_PARTY_HOME } from "./config/loader.js";
+import { loadConfig, resolveConfigPath, resolveBasePrompt, resolveArtifactsPrompt, initLlmPartyHome } from "./config/loader.js";
 import { Orchestrator } from "./orchestrator.js";
 import { runTerminal } from "./ui/terminal.js";
 
 async function main(): Promise<void> {
   const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-  if (process.argv.includes("--init")) {
-    await initLlmPartyHome(appRoot);
-    return;
-  }
-
-  try {
-    const { access } = await import("node:fs/promises");
-    await access(LLM_PARTY_HOME);
-  } catch {
-    console.log("First run detected. Setting up ~/.llm-party/...\n");
-    await initLlmPartyHome(appRoot);
-  }
+  await initLlmPartyHome(appRoot);
 
   const configPath = await resolveConfigPath(appRoot);
   const config = await loadConfig(configPath);
@@ -34,6 +23,8 @@ async function main(): Promise<void> {
   const maxAutoHops = resolveMaxAutoHops(config.maxAutoHops);
 
   const basePrompt = await resolveBasePrompt(appRoot);
+  const artifactsPrompt = await resolveArtifactsPrompt(appRoot);
+  const mergedBase = basePrompt + "\n\n---\n\n" + artifactsPrompt;
 
   const resolveFromAppRoot = (value: string): string => {
     return path.isAbsolute(value) ? value : path.resolve(appRoot, value);
@@ -41,7 +32,7 @@ async function main(): Promise<void> {
 
   const adapters = await Promise.all(
     config.agents.map(async (agent, _index, allAgents) => {
-      const promptParts = [basePrompt];
+      const promptParts = [mergedBase];
 
       if (agent.prompts && agent.prompts.length > 0) {
         const extraPaths = agent.prompts.map((p) => resolveFromAppRoot(p));
