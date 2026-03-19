@@ -1,7 +1,13 @@
 import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { AgentAdapter } from "./adapters/base.js";
 import { ConversationMessage } from "./types.js";
+import { toTag } from "./utils.js";
+
+export interface OrchestratorOptions {
+  contextWindowSize?: number;
+}
 
 export class Orchestrator {
   private readonly agents: Map<string, AgentAdapter>;
@@ -14,8 +20,8 @@ export class Orchestrator {
   private readonly transcriptPath: string;
   private readonly defaultTimeout: number;
   private readonly agentTimeouts: Map<string, number>;
+  private readonly contextWindowSize: number;
   private messageId = 0;
-  private readonly contextWindowSize = 16;
 
   constructor(
     agents: AgentAdapter[],
@@ -23,16 +29,18 @@ export class Orchestrator {
     agentTags?: Record<string, string>,
     humanTag?: string,
     defaultTimeout = 600000,
-    agentTimeouts?: Record<string, number>
+    agentTimeouts?: Record<string, number>,
+    options?: OrchestratorOptions
   ) {
     this.agents = new Map(agents.map((agent) => [agent.name, agent]));
     this.agentTags = new Map(
-      agents.map((agent) => [agent.name, agentTags?.[agent.name] ?? defaultTagFor(agent.name)])
+      agents.map((agent) => [agent.name, agentTags?.[agent.name] ?? toTag(agent.name)])
     );
     this.humanName = humanName;
-    this.humanTag = humanTag ?? defaultTagFor(humanName);
+    this.humanTag = humanTag ?? toTag(humanName);
     this.defaultTimeout = defaultTimeout;
     this.agentTimeouts = new Map(Object.entries(agentTimeouts ?? {}));
+    this.contextWindowSize = options?.contextWindowSize ?? 16;
     this.sessionId = createSessionId();
     this.transcriptPath = path.resolve(".llm-party", "sessions", `transcript-${this.sessionId}.jsonl`);
     for (const agent of agents) {
@@ -56,10 +64,14 @@ export class Orchestrator {
     return this.humanTag;
   }
 
+  getAdapters(): AgentAdapter[] {
+    return Array.from(this.agents.values());
+  }
+
   listAgents(): Array<{ name: string; tag: string; provider: string; model: string }> {
     return Array.from(this.agents.values()).map((agent) => ({
       name: agent.name,
-      tag: this.agentTags.get(agent.name) ?? defaultTagFor(agent.name),
+      tag: this.agentTags.get(agent.name) ?? toTag(agent.name),
       provider: agent.provider,
       model: agent.model
     }));
@@ -88,7 +100,7 @@ export class Orchestrator {
 
     const byName = Array.from(this.agents.values())
       .filter((agent) => {
-        const tag = this.agentTags.get(agent.name) ?? defaultTagFor(agent.name);
+        const tag = this.agentTags.get(agent.name) ?? toTag(agent.name);
         return agent.name.toLowerCase() === normalized || tag.toLowerCase() === normalized;
       })
       .map((agent) => agent.name);
@@ -127,16 +139,7 @@ export class Orchestrator {
 
         if (unseen.length === 0) {
           this.lastSeenByAgent.set(agent.name, historyMaxId);
-          const response: ConversationMessage = {
-            id: ++this.messageId,
-            from: agent.name.toUpperCase(),
-            text: "[No new messages for this agent]",
-            createdAt: new Date().toISOString()
-          };
-          this.conversation.push(response);
-          await this.appendTranscript(response);
-          onMessage(response);
-          return response;
+          return null;
         }
 
         const inputMessages = this.buildInputForAgent(agent.name, unseen);
@@ -155,9 +158,14 @@ export class Orchestrator {
       })
     );
 
-    const results: ConversationMessage[] = settled.map((item, idx) => {
+    const results: ConversationMessage[] = [];
+    for (let idx = 0; idx < settled.length; idx++) {
+      const item = settled[idx];
       if (item.status === "fulfilled") {
-        return item.value;
+        if (item.value) {
+          results.push(item.value);
+        }
+        continue;
       }
 
       const agent = targets[idx];
@@ -169,18 +177,22 @@ export class Orchestrator {
       };
       this.lastSeenByAgent.set(agent.name, historyMaxId);
       this.conversation.push(response);
-      void this.appendTranscript(response);
+      await this.appendTranscript(response);
       onMessage(response);
-      return response;
-    });
+      results.push(response);
+    }
 
     return results;
   }
 
   async appendTranscript(message: ConversationMessage): Promise<void> {
-    const transcriptDir = path.dirname(this.transcriptPath);
-    await mkdir(transcriptDir, { recursive: true });
-    await appendFile(this.transcriptPath, `${JSON.stringify(message)}\n`, "utf8");
+    try {
+      const transcriptDir = path.dirname(this.transcriptPath);
+      await mkdir(transcriptDir, { recursive: true });
+      await appendFile(this.transcriptPath, `${JSON.stringify(message)}\n`, "utf8");
+    } catch {
+      // Transcript write failure should not crash the session
+    }
   }
 
   async saveHistory(targetPath: string): Promise<void> {
@@ -228,10 +240,6 @@ export class Orchestrator {
 
 function createSessionId(): string {
   const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
-  return `${timestamp}-${process.pid}`;
-}
-
-function defaultTagFor(name: string): string {
-  const compact = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-  return compact || "agent";
+  const rand = randomBytes(4).toString("hex");
+  return `${timestamp}-${process.pid}-${rand}`;
 }
