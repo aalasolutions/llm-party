@@ -9,6 +9,8 @@ export class CopilotAdapter implements AgentAdapter {
 
   private client?: CopilotClient;
   private session?: CopilotSession;
+  private systemPrompt = "";
+  private cliPath?: string;
 
   constructor(name: string, model: string) {
     this.name = name;
@@ -16,21 +18,9 @@ export class CopilotAdapter implements AgentAdapter {
   }
 
   async init(config: PersonaConfig): Promise<void> {
-    const systemPrompt = config.resolvedPrompt ?? "";
-
-    const cliPath = config.executablePath ?? process.env.COPILOT_CLI_EXECUTABLE;
-
-    this.client = new CopilotClient({
-      ...(cliPath ? { cliPath } : {}),
-    });
-
-    await this.client.start();
-
-    this.session = await this.client.createSession({
-      model: this.model,
-      systemMessage: { content: systemPrompt },
-      onPermissionRequest: approveAll,
-    });
+    this.systemPrompt = config.resolvedPrompt ?? "";
+    this.cliPath = config.executablePath ?? process.env.COPILOT_CLI_EXECUTABLE;
+    await this.createSession();
   }
 
   async send(messages: ConversationMessage[]): Promise<string> {
@@ -42,13 +32,16 @@ export class CopilotAdapter implements AgentAdapter {
       .map((m) => `[${m.from}]: ${m.text}`)
       .join("\n\n");
 
-    const response = await this.session.sendAndWait({ prompt: transcript });
-
-    if (response && response.data && typeof response.data.content === "string" && response.data.content.length > 0) {
-      return response.data.content;
+    try {
+      return await this.sendToSession(transcript);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("Session not found")) {
+        await this.createSession();
+        return await this.sendToSession(transcript);
+      }
+      throw err;
     }
-
-    return "[No text response from Copilot]";
   }
 
   async destroy(): Promise<void> {
@@ -58,5 +51,42 @@ export class CopilotAdapter implements AgentAdapter {
     if (this.client) {
       await this.client.stop();
     }
+  }
+
+  private async createSession(): Promise<void> {
+    if (this.session) {
+      try { await this.session.disconnect(); } catch { /* stale session */ }
+    }
+    if (this.client) {
+      try { await this.client.stop(); } catch { /* stale client */ }
+    }
+
+    process.env.NODE_NO_WARNINGS = "1";
+
+    this.client = new CopilotClient({
+      ...(this.cliPath ? { cliPath: this.cliPath } : {}),
+    });
+
+    await this.client.start();
+
+    this.session = await this.client.createSession({
+      model: this.model,
+      systemMessage: { content: this.systemPrompt },
+      onPermissionRequest: approveAll,
+    });
+  }
+
+  private async sendToSession(transcript: string): Promise<string> {
+    if (!this.session) {
+      return "[Copilot session not initialized]";
+    }
+
+    const response = await this.session.sendAndWait({ prompt: transcript });
+
+    if (response && response.data && typeof response.data.content === "string" && response.data.content.length > 0) {
+      return response.data.content;
+    }
+
+    return "[No text response from Copilot]";
   }
 }
