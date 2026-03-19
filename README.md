@@ -72,13 +72,7 @@ npm install -g llm-party-cli
 llm-party
 ```
 
-On first run, llm-party creates `~/.llm-party/` with a default config and base prompt. Your system username is detected automatically. A single Claude agent is configured out of the box.
-
-To re-run setup or reset your config:
-
-```bash
-llm-party --init
-```
+On first run, llm-party automatically creates `~/.llm-party/` with a default config and global memory structure. Your system username is detected automatically. No setup commands needed.
 
 ### Add more agents
 
@@ -190,9 +184,9 @@ Orchestrator
     +-- Transcript Writer (JSONL, append-only, per session)
 ```
 
-Each agent receives a rolling window of recent messages (default 16) plus any unseen messages since its last turn. Messages from other agents are included so everyone sees the full multi-party conversation.
+Each agent receives a rolling window of recent messages (configurable, default 16) plus any unseen messages since its last turn. Messages from other agents are included so everyone sees the full multi-party conversation.
 
-`~/.llm-party/config.json` is your global config. `base.md` is always loaded first for every agent. The `prompts` field in config adds extra prompt files on top of it.
+`~/.llm-party/config.json` is your global config. Every agent receives a base system prompt automatically. The `prompts` field in config adds extra prompt files on top of it.
 
 <br/>
 
@@ -242,7 +236,7 @@ GLM uses the Claude SDK as a transport layer. The adapter routes API calls throu
 
 ## Config reference
 
-Config file: `~/.llm-party/config.json` (created on first run).
+Config file: `~/.llm-party/config.json` (created automatically on first run).
 
 Override with `LLM_PARTY_CONFIG` env var to point to a different file.
 
@@ -260,7 +254,7 @@ Override with `LLM_PARTY_CONFIG` env var to point to a different file.
 
 | Field              | Required | Default                  | Description                                                                                         |
 | ------------------ | -------- | ------------------------ | --------------------------------------------------------------------------------------------------- |
-| `name`           | Yes      |                          | Display name shown in responses as `[AGENT NAME]`                                                 |
+| `name`           | Yes      |                          | Display name shown in responses as `[AGENT NAME]`. Must be unique.                                |
 | `tag`            | No       | derived from `name`    | Routing tag for `@tag` targeting                                                                  |
 | `provider`       | Yes      |                          | SDK adapter:`claude`, `codex`, `copilot`, or `glm`                                          |
 | `model`          | Yes      |                          | Model ID passed to the provider. Examples:`opus`, `sonnet`, `gpt-5.2`, `gpt-4.1`, `glm-5` |
@@ -271,9 +265,7 @@ Override with `LLM_PARTY_CONFIG` env var to point to a different file.
 
 ### Prompts
 
-`base.md` is always loaded first for every agent. It defines orchestrator rules, routing syntax, handoff protocol, and team context. It lives at `~/.llm-party/base.md` (copied from the package on first run).
-
-To add extra instructions per agent, use the `prompts` field:
+Every agent receives a base system prompt automatically. To add extra instructions per agent, use the `prompts` field:
 
 ```json
 {
@@ -285,7 +277,7 @@ To add extra instructions per agent, use the `prompts` field:
 }
 ```
 
-The final prompt sent to the agent is: `base.md` + `prompts[0]` + `prompts[1]` + ... joined with `---` separators. Template variables are rendered after concatenation:
+Template variables available in prompt files:
 
 | Variable                    | Description                   |
 | --------------------------- | ----------------------------- |
@@ -301,7 +293,7 @@ The final prompt sent to the agent is: `base.md` + `prompts[0]` + `prompts[1]` +
 
 ### GLM environment setup
 
-GLM requires environment overrides to route through a proxy. The adapter first tries to load env variables from your shell `glm` alias. Without the alias, provide everything in the `env` block:
+GLM requires environment overrides to route through a proxy. The adapter tries to load env variables from your shell `glm` alias automatically. Without the alias, provide everything in the `env` block:
 
 ```json
 {
@@ -337,7 +329,7 @@ File changes made by agents are detected via `git status` after each response. N
 | `/save <path>` | Export conversation as JSON                  |
 | `/session`     | Show session ID and transcript path          |
 | `/changes`     | Show git-modified files                      |
-| `/exit`        | Quit                                         |
+| `/exit`        | Quit (graceful shutdown, all adapters cleaned up) |
 
 <br/>
 
@@ -372,6 +364,9 @@ Run `/agents` to see available tags. Tags match against agent `tag`, `name`, and
 
 **"Unsupported provider"**
 Valid providers: `claude`, `codex`, `copilot`, `glm`.
+
+**"Duplicate agent name"**
+Agent names must be unique (case-insensitive). Rename one of the duplicates in config.
 
 **Agent modifies source code unexpectedly**
 Expected with full permissions. Use git to review and revert.
