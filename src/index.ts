@@ -9,7 +9,9 @@ import { CopilotAdapter } from "./adapters/copilot.js";
 import { GlmAdapter } from "./adapters/glm.js";
 import { loadConfig, resolveConfigPath, resolveBasePrompt, resolveArtifactsPrompt, initLlmPartyHome } from "./config/loader.js";
 import { Orchestrator } from "./orchestrator.js";
-import { runTerminal } from "./ui/terminal.js";
+import { render } from "ink";
+import React from "react";
+import { App } from "./ui/App.js";
 import { toTag } from "./utils.js";
 
 async function main(): Promise<void> {
@@ -107,7 +109,10 @@ async function main(): Promise<void> {
     defaultTimeout,
     agentTimeouts
   );
-  await runTerminal(orchestrator, { maxAutoHops });
+  const { waitUntilExit } = render(
+    React.createElement(App, { orchestrator, maxAutoHops })
+  );
+  await waitUntilExit();
 }
 
 function resolveMaxAutoHops(value: number | "unlimited" | undefined): number {

@@ -26,3 +26,10 @@ export interface AppConfig {
   timeout?: number;
   agents: PersonaConfig[];
 }
+
+export type MessageType = "user" | "agent" | "system";
+
+export interface DisplayMessage extends ConversationMessage {
+  type: MessageType;
+  provider?: string;
+}
