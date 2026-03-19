@@ -6,7 +6,7 @@ import { AppConfig } from "../types.js";
 const VALID_PROVIDERS = ["claude", "codex", "copilot", "glm"] as const;
 const LLM_PARTY_HOME = path.join(homedir(), ".llm-party");
 
-function validateConfig(data: unknown): AppConfig {
+function validateConfig(data: unknown): void {
   if (!data || typeof data !== "object") {
     throw new Error("Config must be an object");
   }
@@ -21,6 +21,8 @@ function validateConfig(data: unknown): AppConfig {
     throw new Error("Config 'agents' array cannot be empty");
   }
 
+  const seenNames = new Set<string>();
+
   for (let i = 0; i < cfg.agents.length; i++) {
     const agent = cfg.agents[i];
 
@@ -31,6 +33,12 @@ function validateConfig(data: unknown): AppConfig {
     if (typeof agent.name !== "string" || agent.name.trim() === "") {
       throw new Error(`Agent at index ${i} must have a non-empty 'name' string`);
     }
+
+    const normalizedName = agent.name.trim().toLowerCase();
+    if (seenNames.has(normalizedName)) {
+      throw new Error(`Duplicate agent name '${agent.name}' at index ${i}. Agent names must be unique.`);
+    }
+    seenNames.add(normalizedName);
 
     if (typeof agent.model !== "string" || agent.model.trim() === "") {
       throw new Error(`Agent '${agent.name}' must have a non-empty 'model' string`);
@@ -49,18 +57,22 @@ function validateConfig(data: unknown): AppConfig {
       }
     }
   }
+}
 
-  for (const agent of cfg.agents as Record<string, unknown>[]) {
+function normalizeConfig(data: Record<string, unknown>): AppConfig {
+  const agents = data.agents as Record<string, unknown>[];
+
+  for (const agent of agents) {
     if (typeof agent.executablePath === "string" && agent.executablePath.startsWith("~/")) {
       agent.executablePath = homedir() + agent.executablePath.slice(1);
     }
   }
 
-  if (!cfg.humanName || (typeof cfg.humanName === "string" && cfg.humanName.trim() === "")) {
-    cfg.humanName = userInfo().username || "USER";
+  if (!data.humanName || (typeof data.humanName === "string" && data.humanName.trim() === "")) {
+    data.humanName = userInfo().username || "USER";
   }
 
-  return cfg as unknown as AppConfig;
+  return data as unknown as AppConfig;
 }
 
 export async function resolveConfigPath(appRoot: string): Promise<string> {
@@ -151,7 +163,8 @@ export async function initLlmPartyHome(appRoot: string): Promise<void> {
 export async function loadConfig(configPath: string): Promise<AppConfig> {
   const raw = await readFile(configPath, "utf8");
   const parsed = JSON.parse(raw);
-  return validateConfig(parsed);
+  validateConfig(parsed);
+  return normalizeConfig(parsed as Record<string, unknown>);
 }
 
 export { LLM_PARTY_HOME };
