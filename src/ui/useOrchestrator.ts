@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef } from "react";
-import { Orchestrator } from "../../orchestrator.js";
-import { initProjectFolder } from "../../config/loader.js";
-import type { ConversationMessage, DisplayMessage } from "../../types.js";
+import { execFile } from "node:child_process";
+import { Orchestrator } from "../orchestrator.js";
+import { initProjectFolder } from "../config/loader.js";
+import type { ConversationMessage, DisplayMessage } from "../types.js";
 
 export type AgentState = "idle" | "thinking" | "error";
 
@@ -127,6 +128,10 @@ async function dispatchWithHandoffs(
       return next;
     });
 
+    const nameMap = new Map(
+      orchestrator.listAgents().map((a) => [a.name.toUpperCase(), a.name])
+    );
+
     const batch: ConversationMessage[] = [];
     await orchestrator.fanOutWithProgress(targets, (msg) => {
       batch.push(msg);
@@ -138,14 +143,14 @@ async function dispatchWithHandoffs(
       };
       setMessages((prev) => [...prev, display]);
 
+      const originalName = nameMap.get(msg.from) ?? msg.from;
       setAgentStates((prev) => {
         const next = new Map(prev);
-        next.set(msg.from, msg.text.startsWith("[Adapter Error]") ? "error" : "idle");
+        next.set(originalName, msg.text.startsWith("[Adapter Error]") ? "error" : "idle");
         return next;
       });
     });
 
-    // Set remaining targets back to idle (in case they had no unseen messages)
     setAgentStates((prev) => {
       const next = new Map(prev);
       for (const name of targetNames) {
@@ -156,7 +161,6 @@ async function dispatchWithHandoffs(
       return next;
     });
 
-    // Check for file changes
     const latestChangedFiles = await getChangedFiles();
     const newlyChanged = diffFiles(knownChangedFilesRef.current, latestChangedFiles);
     if (newlyChanged.length > 0) {
@@ -171,7 +175,6 @@ async function dispatchWithHandoffs(
     }
     knownChangedFilesRef.current = latestChangedFiles;
 
-    // Check for @next handoffs
     const nextSelectors = extractNextSelectors(batch);
     if (nextSelectors.length === 0) return;
 
@@ -215,11 +218,10 @@ async function dispatchWithHandoffs(
 }
 
 function getChangedFiles(): Promise<string[]> {
-  const { execFile } = require("node:child_process");
   return new Promise((resolve) => {
-    execFile("git", ["status", "--porcelain"], { cwd: process.cwd() }, (error: Error | null, stdout: string) => {
+    execFile("git", ["status", "--porcelain"], { cwd: process.cwd() }, (error, stdout) => {
       if (error) { resolve([]); return; }
-      const files = stdout.split("\n").filter((l: string) => l.length >= 4).map((l: string) => l.slice(3));
+      const files = stdout.split("\n").filter((l) => l.length >= 4).map((l) => l.slice(3));
       resolve(Array.from(new Set(files)));
     });
   });

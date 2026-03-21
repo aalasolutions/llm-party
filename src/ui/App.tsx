@@ -1,48 +1,57 @@
 import React, { useCallback } from "react";
-import { Box, Text, useApp, useInput } from "ink";
+import { useKeyboard } from "@opentui/react";
+import type { CliRenderer } from "@opentui/core";
 import { Orchestrator } from "../orchestrator.js";
-import { useOrchestrator } from "./hooks/useOrchestrator.js";
-import { ChatThread } from "./components/ChatThread.js";
-import { InputBar } from "./components/InputBar.js";
-import { StatusBar } from "./components/StatusBar.js";
-import { useTerminalSize } from "./hooks/useTerminalSize.js";
+import { useOrchestrator } from "./useOrchestrator.js";
+import { MessageBubble } from "./MessageBubble.js";
+import { StatusBar } from "./StatusBar.js";
+import { InputLine } from "./InputLine.js";
 
 interface AppProps {
   orchestrator: Orchestrator;
   maxAutoHops: number;
+  renderer: CliRenderer;
 }
 
-export function App({ orchestrator, maxAutoHops }: AppProps): React.ReactElement {
-  const { exit } = useApp();
-  const { rows } = useTerminalSize();
+export function App({ orchestrator, maxAutoHops, renderer }: AppProps) {
   const { messages, agentStates, stickyTarget, dispatching, dispatch, addSystemMessage } =
     useOrchestrator(orchestrator, maxAutoHops);
   const humanName = orchestrator.getHumanName();
   const agents = orchestrator.listAgents();
 
+  const gracefulExit = useCallback(() => {
+    const adapters = orchestrator.getAdapters();
+    Promise.allSettled(adapters.map((a) => a.destroy())).then(() => renderer.destroy());
+  }, [orchestrator, renderer]);
+
+  useKeyboard((key) => {
+    if (key.ctrl && key.name === "c") {
+      gracefulExit();
+    }
+  });
+
   const handleSubmit = useCallback(async (line: string) => {
     if (line === "/exit") {
-      const adapters = orchestrator.getAdapters();
-      await Promise.allSettled(adapters.map((a) => a.destroy()));
-      exit();
+      gracefulExit();
       return;
     }
 
     if (line === "/agents") {
-      const agentList = orchestrator.listAgents();
-      const text = agentList
-        .map((a) => `${a.name} tag=@${a.tag} provider=${a.provider} model=${a.model}`)
-        .join("\n");
-      addSystemMessage(text);
+      addSystemMessage(
+        orchestrator.listAgents().map((a) =>
+          `${a.name} tag=@${a.tag} provider=${a.provider} model=${a.model}`
+        ).join("\n")
+      );
       return;
     }
 
     if (line === "/history") {
       const history = orchestrator.getHistory();
-      const text = history
-        .map((msg) => `${msg.createdAt} [${msg.from}] ${msg.text}`)
-        .join("\n");
-      addSystemMessage(text || "No history yet.");
+      addSystemMessage(
+        history.length > 0
+          ? history.map((msg) => `${msg.createdAt} [${msg.from}] ${msg.text}`).join("\n")
+          : "No history yet."
+      );
       return;
     }
 
@@ -55,10 +64,7 @@ export function App({ orchestrator, maxAutoHops }: AppProps): React.ReactElement
 
     if (line.startsWith("/save ")) {
       const filePath = line.replace("/save ", "").trim();
-      if (!filePath) {
-        addSystemMessage("Usage: /save <path>");
-        return;
-      }
+      if (!filePath) { addSystemMessage("Usage: /save <path>"); return; }
       await orchestrator.saveHistory(filePath);
       addSystemMessage(`Saved history to ${filePath}`);
       return;
@@ -81,30 +87,40 @@ export function App({ orchestrator, maxAutoHops }: AppProps): React.ReactElement
     }
 
     await dispatch(line);
-  }, [orchestrator, dispatch, addSystemMessage, exit]);
+  }, [orchestrator, dispatch, addSystemMessage, gracefulExit]);
 
-  useInput((input, key) => {
-    if (key.ctrl && input === "c") {
-      const adapters = orchestrator.getAdapters();
-      Promise.allSettled(adapters.map((a) => a.destroy())).then(() => exit());
-    }
-  });
+  const tagsLine = agents.map((a) => `@${a.tag}`).join(", ");
 
   return (
-    <Box flexDirection="column" height={rows}>
-      <Box flexDirection="column" flexGrow={1}>
-        <Text color="cyan" dimColor>
-          llm-party | Tags: {agents.map((a) => `@${a.tag}`).join(", ")} | /agents /history /session /save /changes /exit
-        </Text>
-        <ChatThread messages={messages} humanName={humanName} />
-      </Box>
+    <box flexDirection="column" width="100%" height="100%">
+      {/* Header */}
+      <text fg="#00BFFF">
+        llm-party | {tagsLine} | /agents /history /session /save /changes /exit
+      </text>
+
+      {/* Chat area */}
+      <box flexGrow={1}>
+        <scrollbox height="100%">
+          {messages.map((msg) => (
+            <MessageBubble key={msg.id} message={msg} humanName={humanName} />
+          ))}
+        </scrollbox>
+      </box>
+
+      {/* Status bar */}
       <StatusBar
         agents={agents}
         agentStates={agentStates}
         sessionId={orchestrator.getSessionId()}
         stickyTarget={stickyTarget}
       />
-      <InputBar humanName={humanName} onSubmit={handleSubmit} disabled={dispatching} />
-    </Box>
+
+      {/* Input: no fixed height, grows with content */}
+      <InputLine
+        humanName={humanName}
+        onSubmit={handleSubmit}
+        disabled={dispatching}
+      />
+    </box>
   );
 }

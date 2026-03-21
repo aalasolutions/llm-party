@@ -1,16 +1,17 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import "dotenv/config";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import React from "react";
+import { createCliRenderer } from "@opentui/core";
+import { createRoot } from "@opentui/react";
 import { ClaudeAdapter } from "./adapters/claude.js";
 import { CodexAdapter } from "./adapters/codex.js";
 import { CopilotAdapter } from "./adapters/copilot.js";
 import { GlmAdapter } from "./adapters/glm.js";
 import { loadConfig, resolveConfigPath, resolveBasePrompt, resolveArtifactsPrompt, initLlmPartyHome } from "./config/loader.js";
 import { Orchestrator } from "./orchestrator.js";
-import { render } from "ink";
-import React from "react";
 import { App } from "./ui/App.js";
 import { toTag } from "./utils.js";
 
@@ -109,10 +110,15 @@ async function main(): Promise<void> {
     defaultTimeout,
     agentTimeouts
   );
-  const { waitUntilExit } = render(
-    React.createElement(App, { orchestrator, maxAutoHops })
+
+  const renderer = await createCliRenderer({
+    exitOnCtrlC: false,
+    useMouse: true,
+  });
+
+  createRoot(renderer).render(
+    React.createElement(App, { orchestrator, maxAutoHops, renderer })
   );
-  await waitUntilExit();
 }
 
 function resolveMaxAutoHops(value: number | "unlimited" | undefined): number {
