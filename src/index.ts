@@ -141,7 +141,7 @@ async function bootApp(appRoot: string, renderer: CliRenderer, root: Root): Prom
   );
 
   root.render(
-    React.createElement(App, { orchestrator, maxAutoHops, renderer })
+    React.createElement(App, { orchestrator, maxAutoHops, renderer, config })
   );
 }
 

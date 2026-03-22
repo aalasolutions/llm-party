@@ -15,17 +15,27 @@ export interface AgentOverride {
 
 export async function writeWizardConfig(
   selectedIds: string[],
-  overrides?: AgentOverride[]
+  overrides?: AgentOverride[],
+  existingConfig?: AppConfig
 ): Promise<string> {
   const overrideMap = new Map(
     (overrides || []).map((o) => [o.id, o])
   );
+
+  // Build a lookup of existing agents by provider for preserving env and other fields
+  const existingByProvider = new Map<string, PersonaConfig>();
+  if (existingConfig?.agents) {
+    for (const agent of existingConfig.agents) {
+      existingByProvider.set(agent.provider, agent);
+    }
+  }
 
   const agents: PersonaConfig[] = selectedIds.map((id) => {
     const def = PROVIDERS.find((p) => p.id === id);
     if (!def) throw new Error(`Unknown provider: ${id}`);
 
     const override = overrideMap.get(id);
+    const existing = existingByProvider.get(id);
     const agent: PersonaConfig = {
       name: override?.name || def.displayName,
       tag: override?.tag || def.defaultTag,
@@ -33,18 +43,30 @@ export async function writeWizardConfig(
       model: override?.model || def.defaultModel,
     };
 
-    if (def.env) {
+    // Preserve env from existing config or use defaults
+    if (existing?.env) {
+      agent.env = { ...existing.env };
+    } else if (def.env) {
       agent.env = { ...def.env };
     }
+
+    // Preserve prompts and other fields from existing config
+    if (existing?.prompts) agent.prompts = existing.prompts;
+    if (existing?.executablePath) agent.executablePath = existing.executablePath;
+    if (existing?.timeout) agent.timeout = existing.timeout;
 
     return agent;
   });
 
   const config: AppConfig = {
-    humanName: userInfo().username || "USER",
-    maxAutoHops: 15,
+    humanName: existingConfig?.humanName || userInfo().username || "USER",
+    humanTag: existingConfig?.humanTag,
+    maxAutoHops: existingConfig?.maxAutoHops ?? 15,
     agents,
   };
+
+  // Clean undefined fields
+  if (!config.humanTag) delete config.humanTag;
 
   await mkdir(LLM_PARTY_HOME, { recursive: true });
   const configPath = path.join(LLM_PARTY_HOME, "config.json");

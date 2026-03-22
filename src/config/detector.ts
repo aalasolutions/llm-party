@@ -15,6 +15,7 @@ function detectBinary(command: string): Promise<{ available: boolean; version?: 
 
     const proc = spawn(command, ["--version"], {
       stdio: ["ignore", "pipe", "ignore"],
+      shell: true,
       timeout: DETECT_TIMEOUT,
     });
 

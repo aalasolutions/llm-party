@@ -8,6 +8,7 @@ import { MessageBubble } from "./MessageBubble.js";
 import { StatusBar } from "./StatusBar.js";
 import { InputLine } from "./InputLine.js";
 import { ConfigWizard } from "./ConfigWizard.js";
+import type { AppConfig } from "../types.js";
 
 function copyToClipboard(text: string): void {
   const proc = spawn("pbcopy", [], { stdio: ["pipe", "ignore", "ignore"] });
@@ -29,9 +30,10 @@ interface AppProps {
   orchestrator: Orchestrator;
   maxAutoHops: number;
   renderer: CliRenderer;
+  config: AppConfig;
 }
 
-export function App({ orchestrator, maxAutoHops, renderer }: AppProps) {
+export function App({ orchestrator, maxAutoHops, renderer, config }: AppProps) {
   const { messages, agentStates, stickyTarget, dispatching, dispatch, addSystemMessage, clearMessages } =
     useOrchestrator(orchestrator, maxAutoHops);
   const humanName = orchestrator.getHumanName();
@@ -159,6 +161,7 @@ if (line === "/session") {
     return (
       <ConfigWizard
         isFirstRun={false}
+        existingConfig={config}
         onComplete={() => {
           addSystemMessage("Config saved. Restart llm-party to apply changes.");
           setScreen("chat");

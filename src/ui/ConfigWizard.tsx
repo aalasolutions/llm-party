@@ -4,6 +4,7 @@ import { PROVIDERS } from "../config/defaults.js";
 import { detectProviders, type DetectionResult } from "../config/detector.js";
 import { writeWizardConfig, type AgentOverride } from "../config/writer.js";
 import { MultiSelect, type MultiSelectItem } from "./MultiSelect.js";
+import type { AppConfig } from "../types.js";
 
 type WizardStep = "detect" | "providers" | "configure" | "done";
 
@@ -11,6 +12,7 @@ interface ConfigWizardProps {
   isFirstRun: boolean;
   onComplete: () => void;
   onCancel?: () => void;
+  existingConfig?: AppConfig;
 }
 
 interface AgentConfig {
@@ -32,7 +34,7 @@ function useSpinner(): string {
   return SPINNER[frame];
 }
 
-export function ConfigWizard({ isFirstRun, onComplete, onCancel }: ConfigWizardProps) {
+export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig }: ConfigWizardProps) {
   const [step, setStep] = useState<WizardStep>("detect");
   const [detection, setDetection] = useState<DetectionResult[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -56,6 +58,16 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel }: ConfigWizardP
     });
   }, []);
 
+  // Build a lookup of existing agents by provider
+  const existingByProvider = new Map(
+    (existingConfig?.agents || []).map((a) => [a.provider, a])
+  );
+
+  // Pre-select indices of providers that exist in current config
+  const initialSelected = existingConfig
+    ? PROVIDERS.map((p, i) => existingByProvider.has(p.id) ? i : -1).filter((i) => i >= 0)
+    : undefined;
+
   // Build MultiSelect items from detection results
   const multiSelectItems: MultiSelectItem[] = PROVIDERS.map((provider) => {
     const result = detection.find((d) => d.id === provider.id);
@@ -74,11 +86,12 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel }: ConfigWizardP
 
       const configs = ids.map((id) => {
         const def = PROVIDERS.find((p) => p.id === id)!;
+        const existing = existingByProvider.get(id);
         return {
           id: def.id,
-          name: def.displayName,
-          tag: def.defaultTag,
-          model: def.defaultModel,
+          name: existing?.name || def.displayName,
+          tag: existing?.tag || def.defaultTag,
+          model: existing?.model || def.defaultModel,
         };
       });
 
@@ -89,7 +102,7 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel }: ConfigWizardP
       cursorRef.current = configs[0]?.name.length || 0;
       setStep("configure");
     },
-    []
+    [existingByProvider]
   );
 
   const handleProviderCancel = useCallback(() => {
@@ -134,7 +147,7 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel }: ConfigWizardP
     }));
 
     try {
-      await writeWizardConfig(selectedIds, overrides);
+      await writeWizardConfig(selectedIds, overrides, existingConfig);
       setStep("done");
     } catch (err: any) {
       setError(`Failed to save: ${err.message}`);
@@ -294,6 +307,7 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel }: ConfigWizardP
             items={multiSelectItems}
             onConfirm={handleProviderConfirm}
             onCancel={isFirstRun ? undefined : handleProviderCancel}
+            initialSelected={initialSelected}
           />
         </box>
       </box>
