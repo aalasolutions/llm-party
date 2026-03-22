@@ -574,12 +574,12 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
             <box flexDirection="row" marginTop={1} justifyContent="space-between">
               <text>
                 <span fg="#444444">{"◂ "}</span>
-                <span fg="#666666">{"["}</span>
+                <span fg="#00FF88">{"["}</span>
                 <span fg="#444444">{" prev  "}</span>
-                <span fg="#666666">{"]"}</span>
+                <span fg="#00FF88">{"]"}</span>
                 <span fg="#444444">{" next "}</span>
                 <span fg="#444444">{"▸  "}</span>
-                <span fg="#666666">Tab</span>
+                <span fg="#00FF88">Tab</span>
                 <span fg="#444444">{" fields  "}</span>
                 <span fg="#00FF88">Enter</span>
                 <span fg="#444444">{" save & close"}</span>
