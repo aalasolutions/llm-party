@@ -1,12 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useKeyboard } from "@opentui/react";
+import { userInfo } from "node:os";
 import { PROVIDERS } from "../config/defaults.js";
 import { detectProviders, type DetectionResult } from "../config/detector.js";
 import { writeWizardConfig, type AgentOverride } from "../config/writer.js";
 import { MultiSelect, type MultiSelectItem } from "./MultiSelect.js";
+import { toTag } from "../utils.js";
 import type { AppConfig } from "../types.js";
 
 type WizardStep = "detect" | "providers" | "configure" | "done";
+
+const TAG_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 interface ConfigWizardProps {
   isFirstRun: boolean;
@@ -20,6 +24,11 @@ interface AgentConfig {
   name: string;
   tag: string;
   model: string;
+}
+
+interface HumanConfig {
+  name: string;
+  tag: string;
 }
 
 // Braille spinner frames for detection step
@@ -46,6 +55,10 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
 
   // Use refs for input values to avoid parent re-renders on keystroke
   const inputRefs = useRef<AgentConfig[]>([]);
+  const humanRef = useRef<HumanConfig>({
+    name: existingConfig?.humanName || userInfo().username || "USER",
+    tag: existingConfig?.humanTag || toTag(existingConfig?.humanName || userInfo().username || "USER"),
+  });
   const cursorRef = useRef(0);
 
   const spinner = useSpinner();
@@ -109,10 +122,32 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
     if (onCancel) onCancel();
   }, [onCancel]);
 
+  // Tab 0 = "You", tabs 1+ = agents
+  // "You" tab has 2 fields (name, tag), agent tabs have 3 (name, tag, model)
+  const isYouTab = activeTab === 0;
+  const agentTabIndex = activeTab - 1;
+  const totalTabs = (inputRefs.current?.length || 0) + 1;
+  const maxFieldIndex = isYouTab ? 1 : 2; // 0-indexed: You=0,1  Agent=0,1,2
+
   const saveConfig = useCallback(async () => {
     const configs = inputRefs.current;
+    const human = humanRef.current;
 
-    // Validate non-empty
+    // Validate human
+    if (!human.name.trim()) {
+      setError("Your name cannot be empty");
+      return;
+    }
+    if (!human.tag.trim()) {
+      setError("Your tag cannot be empty");
+      return;
+    }
+    if (!TAG_PATTERN.test(human.tag.trim())) {
+      setError("Your tag can only contain letters, numbers, hyphens, underscores");
+      return;
+    }
+
+    // Validate agents
     for (const c of configs) {
       if (!c.name.trim()) {
         setError(`Name cannot be empty for ${c.id}`);
@@ -120,6 +155,10 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
       }
       if (!c.tag.trim()) {
         setError(`Tag cannot be empty for ${c.id}`);
+        return;
+      }
+      if (!TAG_PATTERN.test(c.tag.trim())) {
+        setError(`Tag for ${c.name} can only contain letters, numbers, hyphens, underscores`);
         return;
       }
       if (!c.model.trim()) {
@@ -146,13 +185,21 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
       model: c.model.trim(),
     }));
 
+    // Merge human config into existing
+    const mergedExisting: AppConfig = {
+      ...(existingConfig || {}),
+      humanName: human.name.trim(),
+      humanTag: human.tag.trim(),
+      agents: existingConfig?.agents || [],
+    };
+
     try {
-      await writeWizardConfig(selectedIds, overrides, existingConfig);
+      await writeWizardConfig(selectedIds, overrides, mergedExisting);
       setStep("done");
     } catch (err: any) {
       setError(`Failed to save: ${err.message}`);
     }
-  }, [selectedIds]);
+  }, [selectedIds, existingConfig]);
 
   // Configure step keyboard handling
   useKeyboard((key) => {
@@ -168,39 +215,69 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
     }
 
     const configs = inputRefs.current;
-    if (configs.length === 0) return;
+    const human = humanRef.current;
 
-    const current = configs[activeTab];
-    const fields = [current.name, current.tag, current.model];
-    const fieldValue = fields[focusedField];
+    // Get current field value based on active tab
+    let fieldValue: string;
+    if (isYouTab) {
+      fieldValue = focusedField === 0 ? human.name : human.tag;
+    } else {
+      const current = configs[agentTabIndex];
+      if (!current) return;
+      fieldValue = [current.name, current.tag, current.model][focusedField];
+    }
     const cursor = cursorRef.current;
 
     const updateField = (value: string, newCursor: number) => {
-      if (focusedField === 0) current.name = value;
-      else if (focusedField === 1) current.tag = value;
-      else current.model = value;
+      if (isYouTab) {
+        if (focusedField === 0) human.name = value;
+        else human.tag = value;
+      } else {
+        const current = configs[agentTabIndex];
+        if (focusedField === 0) current.name = value;
+        else if (focusedField === 1) current.tag = value;
+        else current.model = value;
+      }
       cursorRef.current = newCursor;
       setError("");
       forceRender((n) => n + 1);
     };
 
-    // Tab bar navigation: [ and ] or Left/Right when not in a field
+    // Tab bar navigation: [ and ]
     if (key.sequence === "[" || key.sequence === "]") {
       const dir = key.sequence === "[" ? -1 : 1;
-      const next = (activeTab + dir + configs.length) % configs.length;
+      const next = (activeTab + dir + totalTabs) % totalTabs;
       setActiveTab(next);
-      cursorRef.current = getFieldValue(configs[next], focusedField).length;
+      // Clamp focused field to max for the new tab
+      const newMax = next === 0 ? 1 : 2;
+      const newField = Math.min(focusedField, newMax);
+      setFocusedField(newField);
+      // Get field value for new tab
+      let newVal: string;
+      if (next === 0) {
+        newVal = newField === 0 ? human.name : human.tag;
+      } else {
+        newVal = getFieldValue(configs[next - 1], newField);
+      }
+      cursorRef.current = newVal.length;
       forceRender((n) => n + 1);
       return;
     }
 
-    // Tab: cycle fields (name -> tag -> model -> name)
+    // Tab: cycle fields
     if (key.name === "tab") {
+      const fieldCount = maxFieldIndex + 1;
       const nextField = key.shift
-        ? (focusedField - 1 + 3) % 3
-        : (focusedField + 1) % 3;
+        ? (focusedField - 1 + fieldCount) % fieldCount
+        : (focusedField + 1) % fieldCount;
       setFocusedField(nextField);
-      cursorRef.current = getFieldValue(current, nextField).length;
+      let newVal: string;
+      if (isYouTab) {
+        newVal = nextField === 0 ? human.name : human.tag;
+      } else {
+        newVal = getFieldValue(configs[agentTabIndex], nextField);
+      }
+      cursorRef.current = newVal.length;
       forceRender((n) => n + 1);
       return;
     }
@@ -317,7 +394,10 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
   // Step: configure
   if (step === "configure") {
     const configs = inputRefs.current;
-    const current = configs[activeTab];
+    const human = humanRef.current;
+
+    // Build tab labels: "You" + agent names
+    const tabLabels = ["You", ...configs.map((c) => c.name || c.id)];
 
     return (
       <box flexDirection="column" paddingX={2} paddingY={1}>
@@ -331,15 +411,15 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
 
         {/* Tab bar */}
         <box flexDirection="row" marginTop={1}>
-          {configs.map((c, i) => {
+          {tabLabels.map((label, i) => {
             const isActive = i === activeTab;
             return (
               <text
-                key={c.id}
+                key={label + i}
                 fg={isActive ? "#00FF88" : "#888888"}
                 bg={isActive ? "#1a1a2e" : undefined}
               >
-                {" "}{c.name || c.id}{" "}
+                {" "}{label}{" "}
               </text>
             );
           })}
@@ -350,14 +430,23 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
 
         {/* Help text */}
         <text fg="#555555">
-          [ ] switch tabs  |  Tab move fields  |  Enter save
+          [ ] switch tabs  |  Tab move fields  |  Enter save & close
         </text>
 
         {/* Fields for active tab */}
         <box flexDirection="column" marginTop={1}>
-          {renderField("Name ", current.name, focusedField === 0)}
-          {renderField("Tag  ", current.tag, focusedField === 1)}
-          {renderField("Model", current.model, focusedField === 2)}
+          {isYouTab ? (
+            <>
+              {renderField("Name", human.name, focusedField === 0)}
+              {renderField("Tag ", human.tag, focusedField === 1)}
+            </>
+          ) : (
+            <>
+              {renderField("Name ", configs[agentTabIndex].name, focusedField === 0)}
+              {renderField("Tag  ", configs[agentTabIndex].tag, focusedField === 1)}
+              {renderField("Model", configs[agentTabIndex].model, focusedField === 2)}
+            </>
+          )}
         </box>
 
         {error && (
