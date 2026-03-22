@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react";
+import { COLORS } from "./theme.js";
 
 interface Props {
   humanName: string;
@@ -202,7 +203,7 @@ export function InputLine({ humanName, onSubmit, disabled, disabledMessage }: Pr
 
   const value = valueRef.current;
   const cursor = cursorRef.current;
-  const borderColor = disabled ? "#555555" : "#00FF00";
+  const borderColor = disabled ? COLORS.borderDim : COLORS.borderActive;
   const label = `${humanName} > `;
   const separator = "─".repeat(Math.max(0, termWidth - 2));
 
@@ -212,9 +213,9 @@ export function InputLine({ humanName, onSubmit, disabled, disabledMessage }: Pr
       <box flexDirection="column" paddingX={1} width="100%" flexShrink={0}>
         <text fg={borderColor}>{separator}</text>
         {msg ? (
-          <text fg="#666666">{label}{msg}</text>
+          <text fg={COLORS.textDim}>{label}{msg}</text>
         ) : (
-          <text fg="#666666">{label}</text>
+          <text fg={COLORS.textDim}>{label}</text>
         )}
       </box>
     );
@@ -225,9 +226,9 @@ export function InputLine({ humanName, onSubmit, disabled, disabledMessage }: Pr
       <box flexDirection="column" paddingX={1} width="100%" flexShrink={0}>
         <text fg={borderColor}>{separator}</text>
         <text>
-          <span fg="#00FF00"><strong>{label}</strong></span>
-          <span bg="#FFFFFF" fg="#000000"> </span>
-          <span fg="#444444"> Type a message or /command...</span>
+          <span fg={COLORS.human}><strong>{label}</strong></span>
+          <span bg={COLORS.textPrimary} fg="#000000"> </span>
+          <span fg={COLORS.textFaint}> Type a message or /command...</span>
         </text>
       </box>
     );
@@ -241,9 +242,9 @@ export function InputLine({ humanName, onSubmit, disabled, disabledMessage }: Pr
     <box flexDirection="column" paddingX={1} width="100%" flexShrink={0}>
       <text fg={borderColor}>{separator}</text>
       <text>
-        <span fg="#00FF00"><strong>{label}</strong></span>
+        <span fg={COLORS.human}><strong>{label}</strong></span>
         {before}
-        <span bg="#FFFFFF" fg="#000000">{cursorChar}</span>
+        <span bg={COLORS.textPrimary} fg="#000000">{cursorChar}</span>
         {after}
       </text>
     </box>

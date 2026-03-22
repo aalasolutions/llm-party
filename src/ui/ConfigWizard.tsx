@@ -7,6 +7,7 @@ import { writeWizardConfig, type AgentOverride } from "../config/writer.js";
 import { MultiSelect, type MultiSelectItem } from "./MultiSelect.js";
 import { toTag } from "../utils.js";
 import { SPINNER_FRAMES } from "./constants.js";
+import { COLORS, PARTY_COLORS } from "./theme.js";
 import type { AppConfig } from "../types.js";
 
 type WizardStep = "detect" | "providers" | "configure" | "done";
@@ -46,7 +47,7 @@ function useSpinner(): string {
 
 // Sweep title: disco lights animate around a centered title
 const SWEEP_CHARS = ["░", "▒", "▓", "█", "▓", "▒", "░"];
-const PARTY_COLORS = ["#FF00FF", "#00FF88", "#00BFFF", "#FFE000"];
+// PARTY_COLORS imported from theme.ts
 const BAR_WIDTH = 6; // chars per side
 
 function SweepBar({ title }: { title: string }) {
@@ -68,10 +69,10 @@ function SweepBar({ title }: { title: string }) {
         const intensity = 1 - Math.abs(dist - 3) / 3;
         spans.push({
           char: SWEEP_CHARS[dist],
-          color: intensity > 0.3 ? PARTY_COLORS[colorIdx] : "#333333",
+          color: intensity > 0.3 ? PARTY_COLORS[colorIdx] : COLORS.borderStrong,
         });
       } else {
-        spans.push({ char: "░", color: "#1a1a1a" });
+        spans.push({ char: "░", color: COLORS.bgSweepDim });
       }
     }
     return spans;
@@ -85,7 +86,7 @@ function SweepBar({ title }: { title: string }) {
       {left.map((s, i) => (
         <span key={"l" + i} fg={s.color}>{s.char}</span>
       ))}
-      <span fg="#FFFFFF"><strong>{" "}{title}{" "}</strong></span>
+      <span fg={COLORS.textPrimary}><strong>{" "}{title}{" "}</strong></span>
       {right.map((s, i) => (
         <span key={"r" + i} fg={s.color}>{s.char}</span>
       ))}
@@ -434,7 +435,7 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
   const subtitle = isFirstRun
     ? "Bring your models. We'll bring the party."
     : "Changes will take effect on next session";
-  const subtitleColor = isFirstRun ? "#666666" : "#FF8800";
+  const subtitleColor = isFirstRun ? COLORS.textDim : COLORS.warning;
 
   function Subtitle() {
     return <text alignSelf="center" fg={subtitleColor}>{subtitle}</text>;
@@ -446,10 +447,10 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
   if (step === "detect") {
     return (
       <box flexDirection="column" width="100%" height="100%" justifyContent="center" alignItems="center">
-        <box border borderStyle="double" borderColor={discoColor} paddingX={4} paddingY={1} backgroundColor="#0d0d1a">
+        <box border borderStyle="double" borderColor={discoColor} paddingX={4} paddingY={1} backgroundColor={COLORS.bgPanel}>
           <box flexDirection="column" alignItems="center">
             <SweepBar title="llm-party" />
-            <text fg="#00FF88" marginTop={1}>
+            <text fg={COLORS.success} marginTop={1}>
               {spinner} Scanning for installed CLIs...
             </text>
           </box>
@@ -468,7 +469,7 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
           borderColor={discoColor}
           paddingX={3}
           paddingY={1}
-          backgroundColor="#0d0d1a"
+          backgroundColor={COLORS.bgPanel}
           minWidth={50}
         >
           <box flexDirection="column">
@@ -477,19 +478,19 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
             </box>
             <Subtitle />
 
-            <text alignSelf="center" fg="#555555" marginTop={1}>{"═".repeat(44)}</text>
+            <text alignSelf="center" fg={COLORS.textSubtle} marginTop={1}>{"═".repeat(44)}</text>
 
             <text marginTop={1}>
-              <span fg="#AAAAAA">Select your agents  </span>
-              <span fg="#00FF88">Space</span>
-              <span fg="#444444">{" toggle  "}</span>
-              <span fg="#00FF88">Enter</span>
-              <span fg="#444444">{" confirm"}</span>
+              <span fg={COLORS.textSecondary}>Select your agents  </span>
+              <span fg={COLORS.success}>Space</span>
+              <span fg={COLORS.textFaint}>{" toggle  "}</span>
+              <span fg={COLORS.success}>Enter</span>
+              <span fg={COLORS.textFaint}>{" confirm"}</span>
               {!isFirstRun && (
                 <>
-                  <span fg="#444444">{"  "}</span>
-                  <span fg="#FF4444">Esc</span>
-                  <span fg="#444444">{" cancel"}</span>
+                  <span fg={COLORS.textFaint}>{"  "}</span>
+                  <span fg={COLORS.error}>Esc</span>
+                  <span fg={COLORS.textFaint}>{" cancel"}</span>
                 </>
               )}
             </text>
@@ -527,7 +528,7 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
           borderColor={discoColor}
           paddingX={3}
           paddingY={1}
-          backgroundColor="#0d0d1a"
+          backgroundColor={COLORS.bgPanel}
           minWidth={54}
         >
           <box flexDirection="column">
@@ -544,8 +545,8 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
                 return (
                   <text
                     key={label + i}
-                    fg={isActive ? "#00FF88" : "#555555"}
-                    bg={isActive ? "#1a2a1a" : undefined}
+                    fg={isActive ? COLORS.success : COLORS.textSubtle}
+                    bg={isActive ? COLORS.bgActiveTab : undefined}
                   >
                     <strong>{" "}{label}{" "}</strong>
                   </text>
@@ -553,28 +554,28 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
               })}
             </box>
 
-            <text alignSelf="center" fg="#333333">{"━".repeat(48)}</text>
+            <text alignSelf="center" fg={COLORS.borderStrong}>{"━".repeat(48)}</text>
 
             {/* Fields panel */}
             <box
               border
               borderStyle="rounded"
-              borderColor={isYouTab ? "#FF00FF" : "#00FF88"}
+              borderColor={isYouTab ? COLORS.agent : COLORS.success}
               paddingX={2}
               paddingY={1}
               marginTop={1}
-              backgroundColor="#111122"
+              backgroundColor={COLORS.bgContent}
             >
               <box flexDirection="column">
                 {isYouTab ? (
                   <>
-                    <text fg="#FF00FF" marginBottom={1}><strong>Your Identity</strong></text>
+                    <text fg={COLORS.agent} marginBottom={1}><strong>Your Identity</strong></text>
                     {renderField("Name", human.name, focusedField === 0)}
                     {renderField("Tag ", human.tag, focusedField === 1)}
                   </>
                 ) : (
                   <>
-                    <text fg="#00FF88" marginBottom={1}>
+                    <text fg={COLORS.success} marginBottom={1}>
                       <strong>{tabLabels[activeTab]} Configuration</strong>
                     </text>
                     {renderField("Name ", configs[agentTabIndex].name, focusedField === 0)}
@@ -588,25 +589,25 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
             {/* Shortcut bar */}
             <box flexDirection="row" marginTop={1} justifyContent="space-between">
               <text>
-                <span fg="#444444">{"◂ "}</span>
-                <span fg="#00FF88">{"["}</span>
-                <span fg="#444444">{" prev  "}</span>
-                <span fg="#00FF88">{"]"}</span>
-                <span fg="#444444">{" next "}</span>
-                <span fg="#444444">{"▸  "}</span>
-                <span fg="#00FF88">Tab</span>
-                <span fg="#444444">{" fields  "}</span>
-                <span fg="#00FF88">Enter</span>
-                <span fg="#444444">{" save & close"}</span>
-                <span fg="#444444">{"  "}</span>
-                <span fg="#FF8800">Esc</span>
-                <span fg="#444444">{" back"}</span>
+                <span fg={COLORS.textFaint}>{"◂ "}</span>
+                <span fg={COLORS.success}>{"["}</span>
+                <span fg={COLORS.textFaint}>{" prev  "}</span>
+                <span fg={COLORS.success}>{"]"}</span>
+                <span fg={COLORS.textFaint}>{" next "}</span>
+                <span fg={COLORS.textFaint}>{"▸  "}</span>
+                <span fg={COLORS.success}>Tab</span>
+                <span fg={COLORS.textFaint}>{" fields  "}</span>
+                <span fg={COLORS.success}>Enter</span>
+                <span fg={COLORS.textFaint}>{" save & close"}</span>
+                <span fg={COLORS.textFaint}>{"  "}</span>
+                <span fg={COLORS.warning}>Esc</span>
+                <span fg={COLORS.textFaint}>{" back"}</span>
               </text>
             </box>
 
             {error && (
-              <box border borderStyle="rounded" borderColor="#FF4444" paddingX={1} marginTop={1} backgroundColor="#1a0000">
-                <text fg="#FF4444">{error}</text>
+              <box border borderStyle="rounded" borderColor={COLORS.error} paddingX={1} marginTop={1} backgroundColor={COLORS.bgError}>
+                <text fg={COLORS.error}>{error}</text>
               </box>
             )}
           </box>
@@ -624,23 +625,23 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
         borderColor={discoColor}
         paddingX={4}
         paddingY={2}
-        backgroundColor="#0d0d1a"
+        backgroundColor={COLORS.bgPanel}
       >
         <box flexDirection="column" alignItems="center">
           <SweepBar title="Config Saved" />
-          <text fg="#555555" marginTop={1}>{"─".repeat(36)}</text>
-          <text fg="#888888" marginTop={1}>
+          <text fg={COLORS.textSubtle} marginTop={1}>{"─".repeat(36)}</text>
+          <text fg={COLORS.textMuted} marginTop={1}>
             Written to ~/.llm-party/config.json
           </text>
-          <text fg="#555555" marginTop={1}>
+          <text fg={COLORS.textSubtle} marginTop={1}>
             Edit this file anytime to add prompts,
           </text>
-          <text fg="#555555">
+          <text fg={COLORS.textSubtle}>
             env vars, or tweak settings.
           </text>
-          <text fg="#555555" marginTop={1}>{"─".repeat(36)}</text>
-          <text fg="#00BFFF" marginTop={1}>
-            Press <span fg="#00FF88"><strong>Enter</strong></span> to continue
+          <text fg={COLORS.textSubtle} marginTop={1}>{"─".repeat(36)}</text>
+          <text fg={COLORS.primary} marginTop={1}>
+            Press <span fg={COLORS.success}><strong>Enter</strong></span> to continue
           </text>
         </box>
       </box>
@@ -649,15 +650,15 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
 
   function renderField(label: string, value: string, isFocused: boolean) {
     const cursor = cursorRef.current;
-    const labelColor = isFocused ? "#00BFFF" : "#666666";
+    const labelColor = isFocused ? COLORS.primary : COLORS.textDim;
     const indicator = isFocused ? "▸" : " ";
-    const indicatorColor = "#00BFFF";
-    const valueColor = isFocused ? "#FFFFFF" : "#AAAAAA";
+    const indicatorColor = COLORS.primary;
+    const valueColor = isFocused ? COLORS.textPrimary : COLORS.textSecondary;
 
     if (!isFocused) {
       return (
         <text>
-          <span fg="#333333">{indicator} </span>
+          <span fg={COLORS.borderStrong}>{indicator} </span>
           <span fg={labelColor}>{label}: </span>
           <span fg={valueColor}>{value}</span>
         </text>
@@ -673,7 +674,7 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
         <span fg={indicatorColor}>{indicator} </span>
         <span fg={labelColor}>{label}: </span>
         {before}
-        <span bg="#FFFFFF" fg="#000000">{cursorChar}</span>
+        <span bg={COLORS.textPrimary} fg="#000000">{cursorChar}</span>
         {after}
       </text>
     );

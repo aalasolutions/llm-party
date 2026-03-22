@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { useKeyboard } from "@opentui/react";
+import { COLORS } from "./theme.js";
 
 export interface MultiSelectItem {
   label: string;
@@ -16,7 +17,6 @@ interface MultiSelectProps {
 
 export function MultiSelect({ items, onConfirm, onCancel, initialSelected }: MultiSelectProps) {
   const [focused, setFocused] = useState(() => {
-    // Start on first non-disabled item
     return items.findIndex((item) => !item.disabled);
   });
   const [selected, setSelected] = useState<Set<number>>(() => {
@@ -88,10 +88,10 @@ export function MultiSelect({ items, onConfirm, onCancel, initialSelected }: Mul
         const isDisabled = !!item.disabled;
 
         const bullet = isSelected ? "●" : "○";
-        const bulletColor = isDisabled ? "#444444" : isSelected ? "#00FF88" : "#AAAAAA";
-        const labelColor = isDisabled ? "#555555" : "#FFFFFF";
-        const descColor = isDisabled ? "#444444" : "#888888";
-        const bgColor = isFocused && !isDisabled ? "#1a1a2e" : undefined;
+        const bulletColor = isDisabled ? COLORS.textFaint : isSelected ? COLORS.success : COLORS.textSecondary;
+        const labelColor = isDisabled ? COLORS.textSubtle : COLORS.textPrimary;
+        const descColor = isDisabled ? COLORS.textFaint : COLORS.textMuted;
+        const bgColor = isFocused && !isDisabled ? COLORS.bgFocus : undefined;
 
         return (
           <text key={i} bg={bgColor} selectable={false}>
@@ -103,7 +103,7 @@ export function MultiSelect({ items, onConfirm, onCancel, initialSelected }: Mul
       })}
 
       {error && (
-        <text fg="#FF4444" marginTop={1}>
+        <text fg={COLORS.error} marginTop={1}>
           {"  "}{error}
         </text>
       )}

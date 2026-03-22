@@ -9,6 +9,7 @@ import { StatusBar } from "./StatusBar.js";
 import { InputLine } from "./InputLine.js";
 import { ConfigWizard } from "./ConfigWizard.js";
 import { AgentsPanel } from "./AgentsPanel.js";
+import { COLORS } from "./theme.js";
 import type { AppConfig } from "../types.js";
 
 function copyToClipboard(text: string): void {
@@ -183,7 +184,7 @@ if (line === "/session") {
         flexShrink={1}
       >
         {/* Header scrolls with messages */}
-        <text fg="#00BFFF" selectable>
+        <text fg={COLORS.primary} selectable>
           llm-party | {tagsLine} | /agents /config /session /save /changes /clear /exit
         </text>
         {messages.map((msg) => (

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { AgentState } from "./useOrchestrator.js";
 import { SPINNER_FRAMES } from "./constants.js";
+import { COLORS } from "./theme.js";
 
 interface Props {
   agents: Array<{ name: string; tag: string; provider: string }>;
@@ -24,7 +25,7 @@ function useThinkingAnimation(active: boolean): { spinner: string; color: string
 
   return {
     spinner: active ? SPINNER_FRAMES[frame % SPINNER_FRAMES.length] : "",
-    color: active ? PULSE_COLORS[frame % PULSE_COLORS.length] : "#888888",
+    color: active ? PULSE_COLORS[frame % PULSE_COLORS.length] : COLORS.textMuted,
   };
 }
 
@@ -35,9 +36,9 @@ export function StatusBar({ agents, agentStates, sessionId, stickyTarget }: Prop
     <box paddingX={1} flexShrink={0}>
       <box flexDirection="row" justifyContent="space-between" width="100%">
         <box flexDirection="row" gap={2}>
-          <text fg="#888888">{target}</text>
-          <text fg="#555555">|</text>
-          <text fg="#666666">{sessionId.slice(0, 20)}</text>
+          <text fg={COLORS.textMuted}>{target}</text>
+          <text fg={COLORS.textSubtle}>|</text>
+          <text fg={COLORS.textDim}>{sessionId.slice(0, 20)}</text>
         </box>
         <box flexDirection="row" gap={2}>
           {agents.map((a) => (
@@ -53,12 +54,12 @@ function AgentChip({ name, state }: { name: string; state: AgentState }) {
   const { spinner, color } = useThinkingAnimation(state === "thinking");
 
   if (state === "error") {
-    return <text fg="#FF4444">{name} ERR</text>;
+    return <text fg={COLORS.error}>{name} ERR</text>;
   }
 
   if (state === "thinking") {
     return <text fg={color}>{name} {spinner}</text>;
   }
 
-  return <text fg="#888888">{name}</text>;
+  return <text fg={COLORS.textMuted}>{name}</text>;
 }
