@@ -91,17 +91,7 @@ export function App({ orchestrator, maxAutoHops, renderer }: AppProps) {
       return;
     }
 
-    if (line === "/history") {
-      const history = orchestrator.getHistory();
-      addSystemMessage(
-        history.length > 0
-          ? history.map((msg) => `${msg.createdAt} [${msg.from}] ${msg.text}`).join("\n")
-          : "No history yet."
-      );
-      return;
-    }
-
-    if (line === "/session") {
+if (line === "/session") {
       addSystemMessage(
         `Session: ${orchestrator.getSessionId()}\nTranscript: ${orchestrator.getTranscriptPath()}`
       );
@@ -170,7 +160,7 @@ export function App({ orchestrator, maxAutoHops, renderer }: AppProps) {
       >
         {/* Header scrolls with messages */}
         <text fg="#00BFFF" selectable>
-          llm-party | {tagsLine} | /agents /history /session /save /changes /flood /clear /exit
+          llm-party | {tagsLine} | /agents /session /save /changes /clear /exit
         </text>
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} humanName={humanName} />

@@ -325,7 +325,6 @@ File changes made by agents are detected via `git status` after each response. N
 | Command          | What it does                                 |
 | ---------------- | -------------------------------------------- |
 | `/agents`      | List active agents with tag, provider, model |
-| `/history`     | Print full conversation history              |
 | `/save <path>` | Export conversation as JSON                       |
 | `/session`     | Show session ID and transcript path               |
 | `/changes`     | Show git-modified files                           |
