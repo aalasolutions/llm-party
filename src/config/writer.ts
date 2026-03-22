@@ -1,10 +1,9 @@
 import { writeFile, mkdir } from "node:fs/promises";
-import { homedir, userInfo } from "node:os";
+import { userInfo } from "node:os";
 import path from "node:path";
 import { PROVIDERS } from "./defaults.js";
+import { LLM_PARTY_HOME } from "./loader.js";
 import type { AppConfig, PersonaConfig } from "../types.js";
-
-const LLM_PARTY_HOME = path.join(homedir(), ".llm-party");
 
 export interface AgentOverride {
   id: string;
