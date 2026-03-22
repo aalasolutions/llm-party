@@ -8,3 +8,9 @@ export interface AgentAdapter {
   send(messages: ConversationMessage[]): Promise<string>;
   destroy(): Promise<void>;
 }
+
+export function formatTranscript(messages: ConversationMessage[]): string {
+  return messages
+    .map((m) => `[${m.from}]: ${m.text}`)
+    .join("\n\n");
+}

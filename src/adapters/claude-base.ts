@@ -1,5 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { AgentAdapter } from "./base.js";
+import { AgentAdapter, formatTranscript } from "./base.js";
 import { ConversationMessage, PersonaConfig } from "../types.js";
 
 export abstract class ClaudeBaseAdapter implements AgentAdapter {
@@ -28,11 +28,7 @@ export abstract class ClaudeBaseAdapter implements AgentAdapter {
   }
 
   async send(messages: ConversationMessage[]): Promise<string> {
-    const transcript = messages
-      .map((m) => `[${m.from}]: ${m.text}`)
-      .join("\n\n");
-
-    return await this.querySDK(transcript);
+    return await this.querySDK(formatTranscript(messages));
   }
 
   async destroy(): Promise<void> {

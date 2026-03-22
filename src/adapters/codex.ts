@@ -1,5 +1,5 @@
 import { Codex } from "@openai/codex-sdk";
-import { AgentAdapter } from "./base.js";
+import { AgentAdapter, formatTranscript } from "./base.js";
 import { ConversationMessage, PersonaConfig } from "../types.js";
 
 export class CodexAdapter implements AgentAdapter {
@@ -38,11 +38,7 @@ export class CodexAdapter implements AgentAdapter {
       return "[Codex thread not initialized]";
     }
 
-    const transcript = messages
-      .map((m) => `[${m.from}]: ${m.text}`)
-      .join("\n\n");
-
-    const turn = await this.thread.run(transcript);
+    const turn = await this.thread.run(formatTranscript(messages));
 
     if (turn.finalResponse && turn.finalResponse.length > 0) {
       return turn.finalResponse;

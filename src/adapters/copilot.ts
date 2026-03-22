@@ -1,5 +1,5 @@
 import { CopilotClient, CopilotSession, approveAll } from "@github/copilot-sdk";
-import { AgentAdapter } from "./base.js";
+import { AgentAdapter, formatTranscript } from "./base.js";
 import { ConversationMessage, PersonaConfig } from "../types.js";
 
 export class CopilotAdapter implements AgentAdapter {
@@ -28,10 +28,7 @@ export class CopilotAdapter implements AgentAdapter {
       return "[Copilot session not initialized]";
     }
 
-    const transcript = messages
-      .map((m) => `[${m.from}]: ${m.text}`)
-      .join("\n\n");
-
+    const transcript = formatTranscript(messages);
     try {
       return await this.sendToSession(transcript);
     } catch (err) {
