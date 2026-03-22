@@ -19,6 +19,7 @@ interface UseOrchestratorReturn {
   dispatching: boolean;
   dispatch: (line: string) => Promise<void>;
   addSystemMessage: (text: string) => void;
+  clearMessages: () => void;
 }
 
 export function useOrchestrator(
@@ -100,7 +101,11 @@ export function useOrchestrator(
     setMessages((prev) => [...prev, msg]);
   }, []);
 
-  return { messages, agentStates, stickyTarget, dispatching, dispatch, addSystemMessage };
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+  }, []);
+
+  return { messages, agentStates, stickyTarget, dispatching, dispatch, addSystemMessage, clearMessages };
 }
 
 async function dispatchWithHandoffs(
