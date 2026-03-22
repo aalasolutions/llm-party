@@ -422,6 +422,11 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
   const subtitle = isFirstRun
     ? "Bring your models. We'll bring the party."
     : "Changes will take effect on next session";
+  const subtitleColor = isFirstRun ? "#666666" : "#FF8800";
+
+  function Subtitle() {
+    return <text alignSelf="center" fg={subtitleColor}>{subtitle}</text>;
+  }
 
   const discoColor = useDiscoColor();
 
@@ -455,10 +460,12 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
           minWidth={50}
         >
           <box flexDirection="column">
-            <SweepBar title={title} />
-            <text fg="#666666">{subtitle}</text>
+            <box alignSelf="center">
+              <SweepBar title={title} />
+            </box>
+            <Subtitle />
 
-            <text fg="#555555" marginTop={1}>{"═".repeat(44)}</text>
+            <text alignSelf="center" fg="#555555" marginTop={1}>{"═".repeat(44)}</text>
 
             <text marginTop={1}>
               <span fg="#AAAAAA">Select your agents  </span>
@@ -509,34 +516,29 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
           minWidth={54}
         >
           <box flexDirection="column">
-            <SweepBar title={title} />
+            <box alignSelf="center">
+              <SweepBar title={title} />
+            </box>
 
-            {!isFirstRun && (
-              <text fg="#FF8800">{subtitle}</text>
-            )}
+            {!isFirstRun && <Subtitle />}
 
             {/* Tab bar with visual brackets */}
-            <box flexDirection="row" marginTop={1}>
+            <box flexDirection="row" marginTop={1} alignSelf="center">
               {tabLabels.map((label, i) => {
                 const isActive = i === activeTab;
-                if (isActive) {
-                  return (
-                    <text key={label + i}>
-                      <span fg="#00FF88">{"▸ "}</span>
-                      <span fg="#00FF88" bg="#1a2a1a"><strong>{" "}{label}{" "}</strong></span>
-                      <span fg="#00FF88">{" "}</span>
-                    </text>
-                  );
-                }
                 return (
-                  <text key={label + i} fg="#555555">
-                    {"  "}{label}{"  "}
+                  <text
+                    key={label + i}
+                    fg={isActive ? "#00FF88" : "#555555"}
+                    bg={isActive ? "#1a2a1a" : undefined}
+                  >
+                    <strong>{" "}{label}{" "}</strong>
                   </text>
                 );
               })}
             </box>
 
-            <text fg="#333333">{"━".repeat(48)}</text>
+            <text alignSelf="center" fg="#333333">{"━".repeat(48)}</text>
 
             {/* Fields panel */}
             <box
