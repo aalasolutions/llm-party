@@ -61,11 +61,13 @@ export async function writeWizardConfig(
     humanName: existingConfig?.humanName || userInfo().username || "USER",
     humanTag: existingConfig?.humanTag,
     maxAutoHops: existingConfig?.maxAutoHops ?? 15,
+    timeout: existingConfig?.timeout,
     agents,
   };
 
   // Clean undefined fields
   if (!config.humanTag) delete config.humanTag;
+  if (config.timeout === undefined) delete config.timeout;
 
   await mkdir(LLM_PARTY_HOME, { recursive: true });
   const configPath = path.join(LLM_PARTY_HOME, "config.json");
