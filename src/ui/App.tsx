@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useKeyboard } from "@opentui/react";
 import type { ScrollBoxRenderable, CliRenderer } from "@opentui/core";
 import { spawn } from "node:child_process";
@@ -7,6 +7,7 @@ import { useOrchestrator } from "./useOrchestrator.js";
 import { MessageBubble } from "./MessageBubble.js";
 import { StatusBar } from "./StatusBar.js";
 import { InputLine } from "./InputLine.js";
+import { ConfigWizard } from "./ConfigWizard.js";
 
 function copyToClipboard(text: string): void {
   const proc = spawn("pbcopy", [], { stdio: ["pipe", "ignore", "ignore"] });
@@ -36,6 +37,7 @@ export function App({ orchestrator, maxAutoHops, renderer }: AppProps) {
   const humanName = orchestrator.getHumanName();
   const agents = orchestrator.listAgents();
   const scrollRef = useRef<ScrollBoxRenderable>(null);
+  const [screen, setScreen] = useState<"chat" | "config">("chat");
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -112,6 +114,11 @@ if (line === "/session") {
       return;
     }
 
+    if (line === "/config") {
+      setScreen("config");
+      return;
+    }
+
     if (line === "/changes") {
       const { execFile } = await import("node:child_process");
       const files = await new Promise<string[]>((resolve) => {
@@ -148,6 +155,19 @@ if (line === "/session") {
 
   const tagsLine = agents.map((a) => `@${a.tag}`).join(", ");
 
+  if (screen === "config") {
+    return (
+      <ConfigWizard
+        isFirstRun={false}
+        onComplete={() => {
+          addSystemMessage("Config saved. Restart llm-party to apply changes.");
+          setScreen("chat");
+        }}
+        onCancel={() => setScreen("chat")}
+      />
+    );
+  }
+
   return (
     <box flexDirection="column" width="100%" height="100%" onMouseUp={() => copySelection(renderer)}>
       {/* Chat area: flexBasis=0 prevents content from pushing siblings off screen */}
@@ -161,7 +181,7 @@ if (line === "/session") {
       >
         {/* Header scrolls with messages */}
         <text fg="#00BFFF" selectable>
-          llm-party | {tagsLine} | /agents /session /save /changes /clear /exit
+          llm-party | {tagsLine} | /agents /config /session /save /changes /clear /exit
         </text>
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} humanName={humanName} />
