@@ -1,5 +1,5 @@
-import React, { useState, useRef } from "react";
-import { useKeyboard } from "@opentui/react";
+import { useState, useRef, useEffect } from "react";
+import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react";
 
 interface Props {
   humanName: string;
@@ -17,6 +17,11 @@ export function InputLine({ humanName, onSubmit, disabled }: Props) {
   const valueRef = useRef("");
   const cursorRef = useRef(0);
   const [, forceRender] = useState(0);
+  const historyRef = useRef<string[]>([]);
+  const historyIndexRef = useRef(-1);
+  const savedInputRef = useRef("");
+  const tuiRenderer = useRenderer();
+  const { width: termWidth } = useTerminalDimensions();
 
   // Use refs for value/cursor to avoid re-rendering parent on every keystroke.
   // Only this component re-renders via forceRender.
@@ -25,6 +30,20 @@ export function InputLine({ humanName, onSubmit, disabled }: Props) {
     cursorRef.current = newCursor;
     forceRender((n) => n + 1);
   };
+
+  // Handle paste events from terminal
+  useEffect(() => {
+    const handlePaste = (event: any) => {
+      if (disabled) return;
+      const text = new TextDecoder().decode(event.bytes);
+      if (!text) return;
+      const val = valueRef.current;
+      const cur = cursorRef.current;
+      update(val.slice(0, cur) + text + val.slice(cur), cur + text.length);
+    };
+    tuiRenderer.keyInput.on("paste", handlePaste);
+    return () => { tuiRenderer.keyInput.off("paste", handlePaste); };
+  }, [disabled, tuiRenderer]);
 
   useKeyboard((key) => {
     if (disabled) return;
@@ -41,13 +60,19 @@ export function InputLine({ humanName, onSubmit, disabled }: Props) {
     // Enter: submit
     if (key.name === "enter" || key.name === "return") {
       const trimmed = value.trim();
-      if (trimmed) onSubmit(trimmed);
+      if (trimmed) {
+        historyRef.current.push(trimmed);
+        historyIndexRef.current = -1;
+        onSubmit(trimmed);
+      }
       update("", 0);
       return;
     }
 
     // Option+Backspace: delete word backward
-    if ((key.option || key.meta) && key.name === "backspace") {
+    // Mac terminals send \x1b\x7f for Option+Delete (which is Backspace)
+    if ((key.option || key.meta) && key.name === "backspace" ||
+        key.sequence === "\x1b\x7f") {
       const before = value.slice(0, cursor);
       const after = value.slice(cursor);
       const m = before.match(/\S+\s*$/);
@@ -136,8 +161,34 @@ export function InputLine({ humanName, onSubmit, disabled }: Props) {
       return;
     }
 
+    // Up arrow: previous input history
+    if (key.name === "up") {
+      const history = historyRef.current;
+      if (history.length === 0) return;
+      if (historyIndexRef.current === -1) savedInputRef.current = value;
+      const newIndex = Math.min(history.length - 1, historyIndexRef.current + 1);
+      historyIndexRef.current = newIndex;
+      const entry = history[history.length - 1 - newIndex];
+      update(entry, entry.length);
+      return;
+    }
+
+    // Down arrow: next input history or restore saved input
+    if (key.name === "down") {
+      if (historyIndexRef.current === -1) return;
+      const newIndex = historyIndexRef.current - 1;
+      historyIndexRef.current = newIndex;
+      if (newIndex === -1) {
+        update(savedInputRef.current, savedInputRef.current.length);
+      } else {
+        const entry = historyRef.current[historyRef.current.length - 1 - newIndex];
+        update(entry, entry.length);
+      }
+      return;
+    }
+
     // Skip non-printable keys
-    if (key.ctrl || key.name === "escape" || key.name === "up" || key.name === "down" ||
+    if (key.ctrl || key.name === "escape" ||
         key.name === "tab" || key.name === "pageup" || key.name === "pagedown" ||
         key.name === "insert" || FUNCTION_KEYS.has(key.name)) {
       return;
@@ -154,10 +205,12 @@ export function InputLine({ humanName, onSubmit, disabled }: Props) {
   const cursor = cursorRef.current;
   const borderColor = disabled ? "#555555" : "#00FF00";
   const label = `${humanName} > `;
+  const separator = "─".repeat(Math.max(0, termWidth - 2));
 
   if (disabled) {
     return (
-      <box border borderStyle="single" borderColor={borderColor} paddingX={1}>
+      <box flexDirection="column" paddingX={1} width="100%" flexShrink={0}>
+        <text fg={borderColor}>{separator}</text>
         <text fg="#666666">{label}waiting for agents...</text>
       </box>
     );
@@ -165,7 +218,8 @@ export function InputLine({ humanName, onSubmit, disabled }: Props) {
 
   if (value.length === 0) {
     return (
-      <box border borderStyle="single" borderColor={borderColor} paddingX={1}>
+      <box flexDirection="column" paddingX={1} width="100%" flexShrink={0}>
+        <text fg={borderColor}>{separator}</text>
         <text>
           <span fg="#00FF00"><strong>{label}</strong></span>
           <span bg="#FFFFFF" fg="#000000"> </span>
@@ -180,7 +234,8 @@ export function InputLine({ humanName, onSubmit, disabled }: Props) {
   const after = cursor < value.length ? value.slice(cursor + 1) : "";
 
   return (
-    <box border borderStyle="single" borderColor={borderColor} paddingX={1}>
+    <box flexDirection="column" paddingX={1} width="100%" flexShrink={0}>
+      <text fg={borderColor}>{separator}</text>
       <text>
         <span fg="#00FF00"><strong>{label}</strong></span>
         {before}
