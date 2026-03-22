@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { useKeyboard } from "@opentui/react";
 import type { ScrollBoxRenderable, CliRenderer } from "@opentui/core";
 import { spawn } from "node:child_process";
@@ -35,7 +35,6 @@ export function App({ orchestrator, maxAutoHops, renderer }: AppProps) {
     useOrchestrator(orchestrator, maxAutoHops);
   const humanName = orchestrator.getHumanName();
   const agents = orchestrator.listAgents();
-  const [lastKey, setLastKey] = useState("");
   const scrollRef = useRef<ScrollBoxRenderable>(null);
 
   // Auto-scroll to bottom when new messages arrive
@@ -53,8 +52,6 @@ export function App({ orchestrator, maxAutoHops, renderer }: AppProps) {
   }, [orchestrator, renderer]);
 
   useKeyboard((key) => {
-    // const hex = [...key.sequence].map((c: string) => c.charCodeAt(0).toString(16).padStart(2, "0")).join(" ");
-    // setLastKey(`name=${key.name} ctrl=${key.ctrl} meta=${key.meta} opt=${key.option} shift=${key.shift} seq=[${hex}]`);
     // Ctrl+C: copy selection if any, otherwise exit
     if (key.ctrl && key.name === "c") {
       if (!copySelection(renderer)) {
@@ -64,6 +61,10 @@ export function App({ orchestrator, maxAutoHops, renderer }: AppProps) {
     }
     if (key.ctrl && key.name === "l") {
       clearMessages();
+      return;
+    }
+    if (key.name === "f12") {
+      (renderer as any).console?.toggle?.();
       return;
     }
     if (key.name === "pageup") {

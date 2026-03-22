@@ -69,25 +69,7 @@ export function InputLine({ humanName, onSubmit, disabled }: Props) {
       return;
     }
 
-    // Cmd+Backspace (meta): clear to beginning of line
-    if (key.meta && key.name === "backspace") {
-      update(value.slice(cursor), 0);
-      return;
-    }
-
-    // Option+Backspace, Ctrl+Backspace, or ESC+DEL: delete word backward
-    if (((key.option || key.ctrl) && key.name === "backspace") ||
-        key.sequence === "\x1b\x7f") {
-      const before = value.slice(0, cursor);
-      const after = value.slice(cursor);
-      const m = before.match(/\S+\s*$/);
-      if (m) {
-        update(before.slice(0, before.length - m[0].length) + after, cursor - m[0].length);
-      }
-      return;
-    }
-
-    // Backspace: single char
+    // Backspace: single char (Option+Backspace also lands here, no modifier detected)
     if (key.name === "backspace") {
       if (cursor > 0) {
         update(value.slice(0, cursor - 1) + value.slice(cursor), cursor - 1);
@@ -95,23 +77,13 @@ export function InputLine({ humanName, onSubmit, disabled }: Props) {
       return;
     }
 
-    // Cmd+Delete (meta): clear to end of line
-    if (key.meta && key.name === "delete") {
+    // Command+Delete (fn+Cmd+Backspace): clear to end of line
+    if ((key as any).super && key.name === "delete") {
       update(value.slice(0, cursor), cursor);
       return;
     }
 
-    // Option+Delete or Ctrl+Delete: delete word forward
-    if ((key.option || key.ctrl) && key.name === "delete") {
-      const after = value.slice(cursor);
-      const m = after.match(/^\s*\S+/);
-      if (m) {
-        update(value.slice(0, cursor) + after.slice(m[0].length), cursor);
-      }
-      return;
-    }
-
-    // Delete: single char
+    // Delete (fn+Backspace): single char
     if (key.name === "delete") {
       if (cursor < value.length) {
         update(value.slice(0, cursor) + value.slice(cursor + 1), cursor);
@@ -119,31 +91,30 @@ export function InputLine({ humanName, onSubmit, disabled }: Props) {
       return;
     }
 
-    // Cmd+Left: jump to beginning of line
-    if (key.meta && key.name === "left") {
-      update(value, 0);
-      return;
-    }
-
-    // Cmd+Right: jump to end of line
-    if (key.meta && key.name === "right") {
-      update(value, value.length);
-      return;
-    }
-
-    // Option+Left or Ctrl+Left: jump one word backward
-    if ((key.option || key.ctrl) && key.name === "left") {
+    // Option+Left: terminal sends Meta+B (Emacs readline)
+    if (key.meta && key.name === "b") {
       const before = value.slice(0, cursor);
       const m = before.match(/\S+\s*$/);
       update(value, m ? cursor - m[0].length : 0);
       return;
     }
 
-    // Option+Right or Ctrl+Right: jump one word forward
-    if ((key.option || key.ctrl) && key.name === "right") {
+    // Option+Right: terminal sends Meta+F (Emacs readline)
+    if (key.meta && key.name === "f") {
       const after = value.slice(cursor);
       const m = after.match(/^\s*\S+/);
       update(value, m ? cursor + m[0].length : value.length);
+      return;
+    }
+
+    // Option+Backspace: terminal sends Meta+DEL, check raw sequence \x1b\x7f
+    if (key.sequence === "\x1b\x7f") {
+      const before = value.slice(0, cursor);
+      const after = value.slice(cursor);
+      const m = before.match(/\S+\s*$/);
+      if (m) {
+        update(before.slice(0, before.length - m[0].length) + after, cursor - m[0].length);
+      }
       return;
     }
 
