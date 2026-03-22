@@ -114,6 +114,16 @@ async function main(): Promise<void> {
   const renderer = await createCliRenderer({
     exitOnCtrlC: false,
     useMouse: true,
+    useKittyKeyboard: {},
+    onDestroy: () => {
+      Promise.allSettled(adapters.map((a) => a.destroy()));
+    },
+  });
+
+  // SIGINT fallback: if terminal doesn't support Kitty keyboard protocol,
+  // Ctrl+C sends SIGINT instead of a keypress
+  process.on("SIGINT", () => {
+    renderer.destroy();
   });
 
   createRoot(renderer).render(
