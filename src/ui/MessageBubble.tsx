@@ -10,13 +10,13 @@ interface Props {
 export function MessageBubble({ message, humanName }: Props) {
   if (message.type === "system") {
     return (
-      <text fg="#666666">{message.text}</text>
+      <text fg="#666666" selectable>{message.text}</text>
     );
   }
 
   if (message.type === "user") {
     return (
-      <text>
+      <text selectable>
         <span fg="#00FF00"><strong>[{humanName}]</strong></span> {message.text}
       </text>
     );
@@ -29,10 +29,10 @@ export function MessageBubble({ message, humanName }: Props) {
 
   return (
     <box flexDirection="column" marginBottom={1}>
-      <text>
+      <text selectable>
         <span fg="#FF00FF"><strong>[{label}]</strong></span>
       </text>
-      <text>{message.text}</text>
+      <text selectable>{message.text}</text>
     </box>
   );
 }
