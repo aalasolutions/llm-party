@@ -33,7 +33,6 @@ export function useOrchestrator(
   const [stickyTarget, setStickyTarget] = useState<string[] | undefined>(undefined);
   const [dispatching, setDispatching] = useState(false);
   const projectFolderReady = useRef(false);
-  const knownChangedFiles = useRef<string[]>([]);
   const agentProviders = useRef(
     new Map(orchestrator.listAgents().map((a) => [a.name.toUpperCase(), a.provider]))
   );
@@ -80,7 +79,6 @@ export function useOrchestrator(
         orchestrator,
         targets,
         maxAutoHops,
-        knownChangedFiles,
         agentProviders.current,
         setMessages,
         setAgentStates
@@ -112,7 +110,6 @@ async function dispatchWithHandoffs(
   orchestrator: Orchestrator,
   initialTargets: string[] | undefined,
   maxHops: number,
-  knownChangedFilesRef: React.MutableRefObject<string[]>,
   agentProviders: Map<string, string>,
   setMessages: React.Dispatch<React.SetStateAction<DisplayMessage[]>>,
   setAgentStates: React.Dispatch<React.SetStateAction<Map<string, AgentState>>>
@@ -166,20 +163,6 @@ async function dispatchWithHandoffs(
       return next;
     });
 
-    const latestChangedFiles = await getChangedFiles();
-    const newlyChanged = diffFiles(knownChangedFilesRef.current, latestChangedFiles);
-    if (newlyChanged.length > 0) {
-      const systemMsg: DisplayMessage = {
-        id: nextSystemId(),
-        from: "SYSTEM",
-        text: `Files modified:\n${newlyChanged.map((f) => `  ${f}`).join("\n")}`,
-        createdAt: new Date().toISOString(),
-        type: "system",
-      };
-      setMessages((prev) => [...prev, systemMsg]);
-    }
-    knownChangedFilesRef.current = latestChangedFiles;
-
     const nextSelectors = extractNextSelectors(batch);
     if (nextSelectors.length === 0) return;
 
@@ -230,11 +213,6 @@ export function getChangedFiles(): Promise<string[]> {
       resolve(Array.from(new Set(files)));
     });
   });
-}
-
-function diffFiles(before: string[], after: string[]): string[] {
-  const set = new Set(before);
-  return after.filter((f) => !set.has(f));
 }
 
 function extractNextSelectors(messages: ConversationMessage[]): string[] {
