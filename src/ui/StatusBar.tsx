@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { AgentState } from "./useOrchestrator.js";
+import { SPINNER_FRAMES } from "./constants.js";
 
 interface Props {
   agents: Array<{ name: string; tag: string; provider: string }>;
@@ -7,9 +8,6 @@ interface Props {
   sessionId: string;
   stickyTarget: string[] | undefined;
 }
-
-// Braille spinner frames (same width, single character each)
-const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 // Color cycle: pulses through cyan/blue shades
 const PULSE_COLORS = ["#005F87", "#0087AF", "#00AFD7", "#00D7FF", "#5FF", "#00D7FF", "#0087AF"];
 
@@ -19,13 +17,13 @@ function useThinkingAnimation(active: boolean): { spinner: string; color: string
   useEffect(() => {
     if (!active) { setFrame(0); return; }
     const interval = setInterval(() => {
-      setFrame((f) => (f + 1) % (SPINNER.length * PULSE_COLORS.length));
+      setFrame((f) => (f + 1) % (SPINNER_FRAMES.length * PULSE_COLORS.length));
     }, 80);
     return () => clearInterval(interval);
   }, [active]);
 
   return {
-    spinner: active ? SPINNER[frame % SPINNER.length] : "",
+    spinner: active ? SPINNER_FRAMES[frame % SPINNER_FRAMES.length] : "",
     color: active ? PULSE_COLORS[frame % PULSE_COLORS.length] : "#888888",
   };
 }

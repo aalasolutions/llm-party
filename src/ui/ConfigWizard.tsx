@@ -6,6 +6,7 @@ import { detectProviders, type DetectionResult } from "../config/detector.js";
 import { writeWizardConfig, type AgentOverride } from "../config/writer.js";
 import { MultiSelect, type MultiSelectItem } from "./MultiSelect.js";
 import { toTag } from "../utils.js";
+import { SPINNER_FRAMES } from "./constants.js";
 import type { AppConfig } from "../types.js";
 
 type WizardStep = "detect" | "providers" | "configure" | "done";
@@ -32,15 +33,15 @@ interface HumanConfig {
 }
 
 // Braille spinner frames for detection step
-const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+// Use shared spinner frames from constants
 
 function useSpinner(): string {
   const [frame, setFrame] = useState(0);
   useEffect(() => {
-    const interval = setInterval(() => setFrame((f) => (f + 1) % SPINNER.length), 80);
+    const interval = setInterval(() => setFrame((f) => (f + 1) % SPINNER_FRAMES.length), 80);
     return () => clearInterval(interval);
   }, []);
-  return SPINNER[frame];
+  return SPINNER_FRAMES[frame];
 }
 
 // Sweep title: disco lights animate around a centered title
