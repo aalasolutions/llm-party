@@ -401,14 +401,25 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
 
     // Skip non-printable
     if (key.ctrl || key.name === "up" || key.name === "down" ||
-        key.name === "pageup" || key.name === "pagedown" ||
-        key.name === "space") {
+        key.name === "pageup" || key.name === "pagedown") {
       return;
     }
 
-    // Normal character
+    // Space: allowed in name and model (fields 0, 2), blocked in tag (field 1)
+    if (key.name === "space" || key.sequence === " ") {
+      if (focusedField !== 1) {
+        updateField(fieldValue.slice(0, cursor) + " " + fieldValue.slice(cursor), cursor + 1);
+      }
+      return;
+    }
+
+    // Normal character: alphanumeric + space for names, TAG_PATTERN for tags
     const ch = key.sequence;
     if (ch && ch.length > 0 && !ch.startsWith("\x1b")) {
+      // Block quotes and backticks in all fields
+      if (ch === "'" || ch === '"' || ch === "`") return;
+      // Tags: only alphanumeric, hyphens, underscores
+      if (focusedField === 1 && !TAG_PATTERN.test(ch)) return;
       updateField(
         fieldValue.slice(0, cursor) + ch + fieldValue.slice(cursor),
         cursor + ch.length
@@ -502,7 +513,10 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
     const human = humanRef.current;
 
     // Build tab labels: "You" + agent names
-    const tabLabels = ["You", ...configs.map((c) => c.name || c.id)];
+    const tabLabels = ["You", ...selectedIds.map((id) => {
+      const def = PROVIDERS.find((p) => p.id === id);
+      return def?.displayName || id;
+    })];
 
     return (
       <box flexDirection="column" width="100%" height="100%" justifyContent="center" alignItems="center">
@@ -560,7 +574,7 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
                 ) : (
                   <>
                     <text fg="#00FF88" marginBottom={1}>
-                      <strong>{configs[agentTabIndex]?.name || "Agent"} Configuration</strong>
+                      <strong>{tabLabels[activeTab]} Configuration</strong>
                     </text>
                     {renderField("Name ", configs[agentTabIndex].name, focusedField === 0)}
                     {renderField("Tag  ", configs[agentTabIndex].tag, focusedField === 1)}
