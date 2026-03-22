@@ -1,9 +1,10 @@
 import { readFile, writeFile, access, mkdir } from "node:fs/promises";
 import { homedir, userInfo } from "node:os";
 import path from "node:path";
+import { PROVIDERS } from "./defaults.js";
 import { AppConfig } from "../types.js";
 
-const VALID_PROVIDERS = ["claude", "codex", "copilot", "glm"] as const;
+const VALID_PROVIDER_IDS = new Set(PROVIDERS.map((p) => p.id));
 const LLM_PARTY_HOME = path.join(homedir(), ".llm-party");
 
 function validateConfig(data: unknown): void {
@@ -44,9 +45,9 @@ function validateConfig(data: unknown): void {
       throw new Error(`Agent '${agent.name}' must have a non-empty 'model' string`);
     }
 
-    if (!VALID_PROVIDERS.includes(agent.provider)) {
+    if (!VALID_PROVIDER_IDS.has(agent.provider)) {
       throw new Error(
-        `Agent '${agent.name}' has invalid provider '${agent.provider}'. Valid: ${VALID_PROVIDERS.join(", ")}`
+        `Agent '${agent.name}' has invalid provider '${agent.provider}'. Valid: ${Array.from(VALID_PROVIDER_IDS).join(", ")}`
       );
     }
 
