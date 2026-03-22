@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useKeyboard } from "@opentui/react";
 
 export interface MultiSelectItem {
