@@ -8,6 +8,7 @@ import { MessageBubble } from "./MessageBubble.js";
 import { StatusBar } from "./StatusBar.js";
 import { InputLine } from "./InputLine.js";
 import { ConfigWizard } from "./ConfigWizard.js";
+import { AgentsPanel } from "./AgentsPanel.js";
 import type { AppConfig } from "../types.js";
 
 function copyToClipboard(text: string): void {
@@ -40,6 +41,7 @@ export function App({ orchestrator, maxAutoHops, renderer, config }: AppProps) {
   const agents = orchestrator.listAgents();
   const scrollRef = useRef<ScrollBoxRenderable>(null);
   const [screen, setScreen] = useState<"chat" | "config">("chat");
+  const [showAgents, setShowAgents] = useState(false);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -56,6 +58,14 @@ export function App({ orchestrator, maxAutoHops, renderer, config }: AppProps) {
   }, [orchestrator, renderer]);
 
   useKeyboard((key) => {
+    // Ctrl+P: toggle agents panel
+    if (key.ctrl && key.name === "p") {
+      setShowAgents((v) => !v);
+      return;
+    }
+
+    if (showAgents) return;
+
     // Ctrl+C: copy selection if any, otherwise exit
     if (key.ctrl && key.name === "c") {
       if (!copySelection(renderer)) {
@@ -88,11 +98,7 @@ export function App({ orchestrator, maxAutoHops, renderer, config }: AppProps) {
     }
 
     if (line === "/agents") {
-      addSystemMessage(
-        orchestrator.listAgents().map((a) =>
-          `${a.name} tag=@${a.tag} provider=${a.provider} model=${a.model}`
-        ).join("\n")
-      );
+      setShowAgents(true);
       return;
     }
 
@@ -203,8 +209,21 @@ if (line === "/session") {
       <InputLine
         humanName={humanName}
         onSubmit={handleSubmit}
-        disabled={dispatching}
+        disabled={dispatching || showAgents}
+        disabledMessage={showAgents ? "" : undefined}
       />
+
+      {/* Agents overlay */}
+      {showAgents && (
+        <AgentsPanel
+          agents={agents}
+          onClose={() => setShowAgents(false)}
+          onConfig={() => {
+            setShowAgents(false);
+            setScreen("config");
+          }}
+        />
+      )}
     </box>
   );
 }

@@ -5,6 +5,7 @@ interface Props {
   humanName: string;
   onSubmit: (value: string) => void;
   disabled: boolean;
+  disabledMessage?: string;
 }
 
 // Function key names to ignore (but NOT the letter "f")
@@ -13,7 +14,7 @@ const FUNCTION_KEYS = new Set([
   "f7", "f8", "f9", "f10", "f11", "f12",
 ]);
 
-export function InputLine({ humanName, onSubmit, disabled }: Props) {
+export function InputLine({ humanName, onSubmit, disabled, disabledMessage }: Props) {
   const valueRef = useRef("");
   const cursorRef = useRef(0);
   const [, forceRender] = useState(0);
@@ -206,10 +207,15 @@ export function InputLine({ humanName, onSubmit, disabled }: Props) {
   const separator = "─".repeat(Math.max(0, termWidth - 2));
 
   if (disabled) {
+    const msg = disabledMessage !== undefined ? disabledMessage : "waiting for agents...";
     return (
       <box flexDirection="column" paddingX={1} width="100%" flexShrink={0}>
         <text fg={borderColor}>{separator}</text>
-        <text fg="#666666">{label}waiting for agents...</text>
+        {msg ? (
+          <text fg="#666666">{label}{msg}</text>
+        ) : (
+          <text fg="#666666">{label}</text>
+        )}
       </box>
     );
   }
