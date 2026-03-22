@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import type { AgentState } from "./useOrchestrator.js";
 
 interface Props {
@@ -34,15 +34,18 @@ export function StatusBar({ agents, agentStates, sessionId, stickyTarget }: Prop
   const target = stickyTarget ? `@${stickyTarget.join(", @")}` : "@all";
 
   return (
-    <box border borderStyle="single" borderColor="#555555" paddingX={1}>
-      <box flexDirection="row" gap={2}>
-        {agents.map((a) => (
-          <AgentChip key={a.name} name={a.name} state={agentStates.get(a.name) ?? "idle"} />
-        ))}
-        <text fg="#555555">|</text>
-        <text fg="#888888">{target}</text>
-        <text fg="#555555">|</text>
-        <text fg="#666666">{sessionId.slice(0, 20)}</text>
+    <box paddingX={1} flexShrink={0}>
+      <box flexDirection="row" justifyContent="space-between" width="100%">
+        <box flexDirection="row" gap={2}>
+          <text fg="#888888">{target}</text>
+          <text fg="#555555">|</text>
+          <text fg="#666666">{sessionId.slice(0, 20)}</text>
+        </box>
+        <box flexDirection="row" gap={2}>
+          {agents.map((a) => (
+            <AgentChip key={a.name} name={a.name} state={agentStates.get(a.name) ?? "idle"} />
+          ))}
+        </box>
       </box>
     </box>
   );
@@ -56,7 +59,7 @@ function AgentChip({ name, state }: { name: string; state: AgentState }) {
   }
 
   if (state === "thinking") {
-    return <text fg={color}>{spinner} {name}</text>;
+    return <text fg={color}>{name} {spinner}</text>;
   }
 
   return <text fg="#888888">{name}</text>;
