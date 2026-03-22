@@ -326,11 +326,12 @@ File changes made by agents are detected via `git status` after each response. N
 | ---------------- | -------------------------------------------- |
 | `/agents`      | List active agents with tag, provider, model |
 | `/history`     | Print full conversation history              |
-| `/save <path>` | Export conversation as JSON                  |
-| `/session`     | Show session ID and transcript path          |
-| `/changes`     | Show git-modified files                      |
-| `/clear`       | Clear chat display (Ctrl+L also works)           |
+| `/save <path>` | Export conversation as JSON                       |
+| `/session`     | Show session ID and transcript path               |
+| `/changes`     | Show git-modified files                           |
+| `/clear`       | Clear chat display (Ctrl+L also works)            |
 | `/exit`        | Quit (graceful shutdown, all adapters cleaned up) |
+| `Ctrl+C`       | Exit (or copy selected text if selection active)  |
 
 <br/>
 
