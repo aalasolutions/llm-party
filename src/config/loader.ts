@@ -102,6 +102,14 @@ export async function resolveArtifactsPrompt(appRoot: string): Promise<string> {
   return await readFile(bundledArtifacts, "utf8");
 }
 
+async function ensureFile(filePath: string, defaultContent: string): Promise<void> {
+  try {
+    await access(filePath);
+  } catch {
+    await writeFile(filePath, defaultContent, "utf8");
+  }
+}
+
 export async function initProjectFolder(cwd: string): Promise<void> {
   const projectHome = path.join(cwd, ".llm-party");
   const memoryDir = path.join(projectHome, "memory");
@@ -110,26 +118,9 @@ export async function initProjectFolder(cwd: string): Promise<void> {
   await mkdir(memoryDir, { recursive: true });
   await mkdir(skillsDir, { recursive: true });
 
-  const tasksFile = path.join(projectHome, "TASKS.md");
-  try {
-    await access(tasksFile);
-  } catch {
-    await writeFile(tasksFile, "# Tasks\n", "utf8");
-  }
-
-  const projectMd = path.join(memoryDir, "project.md");
-  try {
-    await access(projectMd);
-  } catch {
-    await writeFile(projectMd, "# Project Memory\n\n## Current State\n\nLast Updated:\nActive:\nBlockers:\nNext:\n\n---\n\n## Log\n", "utf8");
-  }
-
-  const decisionsMd = path.join(memoryDir, "decisions.md");
-  try {
-    await access(decisionsMd);
-  } catch {
-    await writeFile(decisionsMd, "# Decisions\n", "utf8");
-  }
+  await ensureFile(path.join(projectHome, "TASKS.md"), "# Tasks\n");
+  await ensureFile(path.join(memoryDir, "project.md"), "# Project Memory\n\n## Current State\n\nLast Updated:\nActive:\nBlockers:\nNext:\n\n---\n\n## Log\n");
+  await ensureFile(path.join(memoryDir, "decisions.md"), "# Decisions\n");
 }
 
 export async function initLlmPartyHome(appRoot: string): Promise<void> {
@@ -138,19 +129,8 @@ export async function initLlmPartyHome(appRoot: string): Promise<void> {
   await mkdir(path.join(LLM_PARTY_HOME, "network"), { recursive: true });
   await mkdir(path.join(LLM_PARTY_HOME, "agents"), { recursive: true });
 
-  const projectsYml = path.join(LLM_PARTY_HOME, "network", "projects.yml");
-  try {
-    await access(projectsYml);
-  } catch {
-    await writeFile(projectsYml, "projects: []\n", "utf8");
-  }
-
-  const librariesYml = path.join(LLM_PARTY_HOME, "network", "libraries.yml");
-  try {
-    await access(librariesYml);
-  } catch {
-    await writeFile(librariesYml, "libraries: []\n", "utf8");
-  }
+  await ensureFile(path.join(LLM_PARTY_HOME, "network", "projects.yml"), "projects: []\n");
+  await ensureFile(path.join(LLM_PARTY_HOME, "network", "libraries.yml"), "libraries: []\n");
 
 }
 
