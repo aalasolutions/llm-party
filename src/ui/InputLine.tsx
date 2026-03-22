@@ -69,9 +69,14 @@ export function InputLine({ humanName, onSubmit, disabled }: Props) {
       return;
     }
 
-    // Option+Backspace: delete word backward
-    // Mac terminals send \x1b\x7f for Option+Delete (which is Backspace)
-    if ((key.option || key.meta) && key.name === "backspace" ||
+    // Cmd+Backspace (meta): clear to beginning of line
+    if (key.meta && key.name === "backspace") {
+      update(value.slice(cursor), 0);
+      return;
+    }
+
+    // Option+Backspace, Ctrl+Backspace, or ESC+DEL: delete word backward
+    if (((key.option || key.ctrl) && key.name === "backspace") ||
         key.sequence === "\x1b\x7f") {
       const before = value.slice(0, cursor);
       const after = value.slice(cursor);
@@ -90,8 +95,14 @@ export function InputLine({ humanName, onSubmit, disabled }: Props) {
       return;
     }
 
-    // Option+Delete: delete word forward
-    if ((key.option || key.meta) && key.name === "delete") {
+    // Cmd+Delete (meta): clear to end of line
+    if (key.meta && key.name === "delete") {
+      update(value.slice(0, cursor), cursor);
+      return;
+    }
+
+    // Option+Delete or Ctrl+Delete: delete word forward
+    if ((key.option || key.ctrl) && key.name === "delete") {
       const after = value.slice(cursor);
       const m = after.match(/^\s*\S+/);
       if (m) {
@@ -108,27 +119,43 @@ export function InputLine({ humanName, onSubmit, disabled }: Props) {
       return;
     }
 
-    // Left arrow
-    if (key.name === "left") {
-      if (key.option || key.meta) {
-        const before = value.slice(0, cursor);
-        const m = before.match(/\S+\s*$/);
-        update(value, m ? cursor - m[0].length : 0);
-      } else {
-        update(value, Math.max(0, cursor - 1));
-      }
+    // Cmd+Left: jump to beginning of line
+    if (key.meta && key.name === "left") {
+      update(value, 0);
       return;
     }
 
-    // Right arrow
+    // Cmd+Right: jump to end of line
+    if (key.meta && key.name === "right") {
+      update(value, value.length);
+      return;
+    }
+
+    // Option+Left or Ctrl+Left: jump one word backward
+    if ((key.option || key.ctrl) && key.name === "left") {
+      const before = value.slice(0, cursor);
+      const m = before.match(/\S+\s*$/);
+      update(value, m ? cursor - m[0].length : 0);
+      return;
+    }
+
+    // Option+Right or Ctrl+Right: jump one word forward
+    if ((key.option || key.ctrl) && key.name === "right") {
+      const after = value.slice(cursor);
+      const m = after.match(/^\s*\S+/);
+      update(value, m ? cursor + m[0].length : value.length);
+      return;
+    }
+
+    // Left arrow: one character
+    if (key.name === "left") {
+      update(value, Math.max(0, cursor - 1));
+      return;
+    }
+
+    // Right arrow: one character
     if (key.name === "right") {
-      if (key.option || key.meta) {
-        const after = value.slice(cursor);
-        const m = after.match(/^\s*\S+/);
-        update(value, m ? cursor + m[0].length : value.length);
-      } else {
-        update(value, Math.min(value.length, cursor + 1));
-      }
+      update(value, Math.min(value.length, cursor + 1));
       return;
     }
 
