@@ -1,10 +1,37 @@
 {
+  "humanName": "AAMIR",
+  "humanTag": "aamir",
+  "maxAutoHops": 15,
   "agents": [
+    {
+      "name": "GLM",
+      "tag": "glm",
+      "provider": "glm",
+      "model": "glm-5",
+      "env": {
+        "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.5-air",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-4.5",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5"
+      }
+    },
     {
       "name": "Claude",
       "tag": "claude",
       "provider": "claude",
-      "model": "sonnet"
+      "model": "opus"
+    },
+    {
+      "name": "Copilot",
+      "tag": "copilot",
+      "provider": "copilot",
+      "model": "gpt-4.1"
+    },
+    {
+      "name": "Codex",
+      "tag": "codex",
+      "provider": "codex",
+      "model": "gpt-5.2"
     }
   ]
 }

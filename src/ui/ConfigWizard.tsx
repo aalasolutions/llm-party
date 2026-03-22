@@ -43,11 +43,70 @@ function useSpinner(): string {
   return SPINNER[frame];
 }
 
+// Sweep title: disco lights animate around a centered title
+const SWEEP_CHARS = ["░", "▒", "▓", "█", "▓", "▒", "░"];
+const PARTY_COLORS = ["#FF00FF", "#00FF88", "#00BFFF", "#FFE000"];
+const BAR_WIDTH = 6; // chars per side
+
+function SweepBar({ title }: { title: string }) {
+  const glow = SWEEP_CHARS.length;
+  const totalWidth = BAR_WIDTH * 2 + title.length + 2; // +2 for spaces around title
+  const [pos, setPos] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setPos((p) => (p + 1) % (BAR_WIDTH + glow)), 50);
+    return () => clearInterval(interval);
+  }, []);
+
+  function buildSide(reverse: boolean) {
+    const spans: Array<{ char: string; color: string }> = [];
+    for (let i = 0; i < BAR_WIDTH; i++) {
+      const idx = reverse ? BAR_WIDTH - 1 - i : i;
+      const dist = idx - pos;
+      if (dist >= 0 && dist < glow) {
+        const colorIdx = Math.floor((pos + idx) / 2) % PARTY_COLORS.length;
+        const intensity = 1 - Math.abs(dist - 3) / 3;
+        spans.push({
+          char: SWEEP_CHARS[dist],
+          color: intensity > 0.3 ? PARTY_COLORS[colorIdx] : "#333333",
+        });
+      } else {
+        spans.push({ char: "░", color: "#1a1a1a" });
+      }
+    }
+    return spans;
+  }
+
+  const left = buildSide(false);
+  const right = buildSide(true);
+
+  return (
+    <text>
+      {left.map((s, i) => (
+        <span key={"l" + i} fg={s.color}>{s.char}</span>
+      ))}
+      <span fg="#FFFFFF"><strong>{" "}{title}{" "}</strong></span>
+      {right.map((s, i) => (
+        <span key={"r" + i} fg={s.color}>{s.char}</span>
+      ))}
+    </text>
+  );
+}
+
+// Disco border accent: color-cycling side decorations
+function useDiscoColor(): string {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setIdx((i) => (i + 1) % PARTY_COLORS.length), 800);
+    return () => clearInterval(interval);
+  }, []);
+  return PARTY_COLORS[idx];
+}
+
 export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig }: ConfigWizardProps) {
   const [step, setStep] = useState<WizardStep>("detect");
   const [detection, setDetection] = useState<DetectionResult[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [agentConfigs, setAgentConfigs] = useState<AgentConfig[]>([]);
+  const [, setAgentConfigs] = useState<AgentConfig[]>([]);
   const [activeTab, setActiveTab] = useState(0);
   const [focusedField, setFocusedField] = useState(0); // 0=name, 1=tag, 2=model
   const [error, setError] = useState("");
@@ -288,9 +347,11 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
       return;
     }
 
-    // Escape: cancel if available
-    if (key.name === "escape" && onCancel) {
-      onCancel();
+    // Escape: back to provider selection (or cancel if at providers step)
+    if (key.name === "escape") {
+      setStep("providers");
+      setFocusedField(0);
+      setActiveTab(0);
       return;
     }
 
@@ -358,15 +419,24 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
   // ── RENDER ──
 
   const title = isFirstRun ? "Welcome to llm-party" : "Configure Agents";
+  const subtitle = isFirstRun
+    ? "Bring your models. We'll bring the party."
+    : "Changes will take effect on next session";
+
+  const discoColor = useDiscoColor();
 
   // Step: detect
   if (step === "detect") {
     return (
-      <box flexDirection="column" paddingX={2} paddingY={1}>
-        <text fg="#00BFFF"><strong>{title}</strong></text>
-        <text fg="#00FF88" marginTop={1}>
-          {spinner} Scanning for installed CLIs...
-        </text>
+      <box flexDirection="column" width="100%" height="100%" justifyContent="center" alignItems="center">
+        <box border borderStyle="double" borderColor={discoColor} paddingX={4} paddingY={1} backgroundColor="#0d0d1a">
+          <box flexDirection="column" alignItems="center">
+            <SweepBar title="llm-party" />
+            <text fg="#00FF88" marginTop={1}>
+              {spinner} Scanning for installed CLIs...
+            </text>
+          </box>
+        </box>
       </box>
     );
   }
@@ -374,18 +444,46 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
   // Step: providers
   if (step === "providers") {
     return (
-      <box flexDirection="column" paddingX={2} paddingY={1}>
-        <text fg="#00BFFF"><strong>{title}</strong></text>
-        <text fg="#888888" marginTop={1}>
-          Select your agents (Space to toggle, Enter to confirm)
-        </text>
-        <box marginTop={1}>
-          <MultiSelect
-            items={multiSelectItems}
-            onConfirm={handleProviderConfirm}
-            onCancel={isFirstRun ? undefined : handleProviderCancel}
-            initialSelected={initialSelected}
-          />
+      <box flexDirection="column" width="100%" height="100%" justifyContent="center" alignItems="center">
+        <box
+          border
+          borderStyle="double"
+          borderColor={discoColor}
+          paddingX={3}
+          paddingY={1}
+          backgroundColor="#0d0d1a"
+          minWidth={50}
+        >
+          <box flexDirection="column">
+            <SweepBar title={title} />
+            <text fg="#666666">{subtitle}</text>
+
+            <text fg="#555555" marginTop={1}>{"═".repeat(44)}</text>
+
+            <text marginTop={1}>
+              <span fg="#AAAAAA">Select your agents  </span>
+              <span fg="#00FF88">Space</span>
+              <span fg="#444444">{" toggle  "}</span>
+              <span fg="#00FF88">Enter</span>
+              <span fg="#444444">{" confirm"}</span>
+              {!isFirstRun && (
+                <>
+                  <span fg="#444444">{"  "}</span>
+                  <span fg="#FF4444">Esc</span>
+                  <span fg="#444444">{" cancel"}</span>
+                </>
+              )}
+            </text>
+
+            <box marginTop={1}>
+              <MultiSelect
+                items={multiSelectItems}
+                onConfirm={handleProviderConfirm}
+                onCancel={isFirstRun ? undefined : handleProviderCancel}
+                initialSelected={initialSelected}
+              />
+            </box>
+          </box>
         </box>
       </box>
     );
@@ -400,87 +498,151 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
     const tabLabels = ["You", ...configs.map((c) => c.name || c.id)];
 
     return (
-      <box flexDirection="column" paddingX={2} paddingY={1}>
-        <text fg="#00BFFF"><strong>{title}</strong></text>
+      <box flexDirection="column" width="100%" height="100%" justifyContent="center" alignItems="center">
+        <box
+          border
+          borderStyle="double"
+          borderColor={discoColor}
+          paddingX={3}
+          paddingY={1}
+          backgroundColor="#0d0d1a"
+          minWidth={54}
+        >
+          <box flexDirection="column">
+            <SweepBar title={title} />
 
-        {!isFirstRun && (
-          <text fg="#FF8800" marginTop={1}>
-            Changes will take effect on next session
-          </text>
-        )}
+            {!isFirstRun && (
+              <text fg="#FF8800">{subtitle}</text>
+            )}
 
-        {/* Tab bar */}
-        <box flexDirection="row" marginTop={1}>
-          {tabLabels.map((label, i) => {
-            const isActive = i === activeTab;
-            return (
-              <text
-                key={label + i}
-                fg={isActive ? "#00FF88" : "#888888"}
-                bg={isActive ? "#1a1a2e" : undefined}
-              >
-                {" "}{label}{" "}
+            {/* Tab bar with visual brackets */}
+            <box flexDirection="row" marginTop={1}>
+              {tabLabels.map((label, i) => {
+                const isActive = i === activeTab;
+                if (isActive) {
+                  return (
+                    <text key={label + i}>
+                      <span fg="#00FF88">{"▸ "}</span>
+                      <span fg="#00FF88" bg="#1a2a1a"><strong>{" "}{label}{" "}</strong></span>
+                      <span fg="#00FF88">{" "}</span>
+                    </text>
+                  );
+                }
+                return (
+                  <text key={label + i} fg="#555555">
+                    {"  "}{label}{"  "}
+                  </text>
+                );
+              })}
+            </box>
+
+            <text fg="#333333">{"━".repeat(48)}</text>
+
+            {/* Fields panel */}
+            <box
+              border
+              borderStyle="rounded"
+              borderColor={isYouTab ? "#FF00FF" : "#00FF88"}
+              paddingX={2}
+              paddingY={1}
+              marginTop={1}
+              backgroundColor="#111122"
+            >
+              <box flexDirection="column">
+                {isYouTab ? (
+                  <>
+                    <text fg="#FF00FF" marginBottom={1}><strong>Your Identity</strong></text>
+                    {renderField("Name", human.name, focusedField === 0)}
+                    {renderField("Tag ", human.tag, focusedField === 1)}
+                  </>
+                ) : (
+                  <>
+                    <text fg="#00FF88" marginBottom={1}>
+                      <strong>{configs[agentTabIndex]?.name || "Agent"} Configuration</strong>
+                    </text>
+                    {renderField("Name ", configs[agentTabIndex].name, focusedField === 0)}
+                    {renderField("Tag  ", configs[agentTabIndex].tag, focusedField === 1)}
+                    {renderField("Model", configs[agentTabIndex].model, focusedField === 2)}
+                  </>
+                )}
+              </box>
+            </box>
+
+            {/* Shortcut bar */}
+            <box flexDirection="row" marginTop={1} justifyContent="space-between">
+              <text>
+                <span fg="#444444">{"◂ "}</span>
+                <span fg="#666666">{"["}</span>
+                <span fg="#444444">{" prev  "}</span>
+                <span fg="#666666">{"]"}</span>
+                <span fg="#444444">{" next "}</span>
+                <span fg="#444444">{"▸  "}</span>
+                <span fg="#666666">Tab</span>
+                <span fg="#444444">{" fields  "}</span>
+                <span fg="#00FF88">Enter</span>
+                <span fg="#444444">{" save & close"}</span>
+                <span fg="#444444">{"  "}</span>
+                <span fg="#FF8800">Esc</span>
+                <span fg="#444444">{" back"}</span>
               </text>
-            );
-          })}
+            </box>
+
+            {error && (
+              <box border borderStyle="rounded" borderColor="#FF4444" paddingX={1} marginTop={1} backgroundColor="#1a0000">
+                <text fg="#FF4444">{error}</text>
+              </box>
+            )}
+          </box>
         </box>
-        <text fg="#555555">
-          {"─".repeat(40)}
-        </text>
-
-        {/* Help text */}
-        <text fg="#555555">
-          [ ] switch tabs  |  Tab move fields  |  Enter save & close
-        </text>
-
-        {/* Fields for active tab */}
-        <box flexDirection="column" marginTop={1}>
-          {isYouTab ? (
-            <>
-              {renderField("Name", human.name, focusedField === 0)}
-              {renderField("Tag ", human.tag, focusedField === 1)}
-            </>
-          ) : (
-            <>
-              {renderField("Name ", configs[agentTabIndex].name, focusedField === 0)}
-              {renderField("Tag  ", configs[agentTabIndex].tag, focusedField === 1)}
-              {renderField("Model", configs[agentTabIndex].model, focusedField === 2)}
-            </>
-          )}
-        </box>
-
-        {error && (
-          <text fg="#FF4444" marginTop={1}>{error}</text>
-        )}
       </box>
     );
   }
 
   // Step: done
   return (
-    <box flexDirection="column" paddingX={2} paddingY={1}>
-      <text fg="#00FF88"><strong>Config saved!</strong></text>
-      <text fg="#888888" marginTop={1}>
-        Written to ~/.llm-party/config.json
-      </text>
-      <text fg="#555555" marginTop={1}>
-        You can always edit this file to add prompts, env vars, or tweak settings.
-      </text>
-      <text fg="#00BFFF" marginTop={2}>
-        Press Enter to continue
-      </text>
+    <box flexDirection="column" width="100%" height="100%" justifyContent="center" alignItems="center">
+      <box
+        border
+        borderStyle="double"
+        borderColor={discoColor}
+        paddingX={4}
+        paddingY={2}
+        backgroundColor="#0d0d1a"
+      >
+        <box flexDirection="column" alignItems="center">
+          <SweepBar title="Config Saved" />
+          <text fg="#555555" marginTop={1}>{"─".repeat(36)}</text>
+          <text fg="#888888" marginTop={1}>
+            Written to ~/.llm-party/config.json
+          </text>
+          <text fg="#555555" marginTop={1}>
+            Edit this file anytime to add prompts,
+          </text>
+          <text fg="#555555">
+            env vars, or tweak settings.
+          </text>
+          <text fg="#555555" marginTop={1}>{"─".repeat(36)}</text>
+          <text fg="#00BFFF" marginTop={1}>
+            Press <span fg="#00FF88"><strong>Enter</strong></span> to continue
+          </text>
+        </box>
+      </box>
     </box>
   );
 
   function renderField(label: string, value: string, isFocused: boolean) {
     const cursor = cursorRef.current;
-    const labelColor = isFocused ? "#00FF88" : "#888888";
+    const labelColor = isFocused ? "#00BFFF" : "#666666";
+    const indicator = isFocused ? "▸" : " ";
+    const indicatorColor = "#00BFFF";
+    const valueColor = isFocused ? "#FFFFFF" : "#AAAAAA";
 
     if (!isFocused) {
       return (
         <text>
+          <span fg="#333333">{indicator} </span>
           <span fg={labelColor}>{label}: </span>
-          <span fg="#FFFFFF">{value}</span>
+          <span fg={valueColor}>{value}</span>
         </text>
       );
     }
@@ -491,6 +653,7 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
 
     return (
       <text>
+        <span fg={indicatorColor}>{indicator} </span>
         <span fg={labelColor}>{label}: </span>
         {before}
         <span bg="#FFFFFF" fg="#000000">{cursorChar}</span>
