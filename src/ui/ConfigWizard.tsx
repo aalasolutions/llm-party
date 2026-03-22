@@ -369,7 +369,7 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel }: ConfigWizardP
     </box>
   );
 
-  function renderField(label: string, value: string, isFocused: boolean): JSX.Element {
+  function renderField(label: string, value: string, isFocused: boolean) {
     const cursor = cursorRef.current;
     const labelColor = isFocused ? "#00FF88" : "#888888";
 

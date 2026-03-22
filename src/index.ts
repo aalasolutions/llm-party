@@ -4,15 +4,16 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import React from "react";
-import { createCliRenderer } from "@opentui/core";
-import { createRoot } from "@opentui/react";
+import { createCliRenderer, type CliRenderer } from "@opentui/core";
+import { createRoot, type Root } from "@opentui/react";
 import { ClaudeAdapter } from "./adapters/claude.js";
 import { CodexAdapter } from "./adapters/codex.js";
 import { CopilotAdapter } from "./adapters/copilot.js";
 import { GlmAdapter } from "./adapters/glm.js";
-import { loadConfig, resolveConfigPath, resolveBasePrompt, resolveArtifactsPrompt, initLlmPartyHome } from "./config/loader.js";
+import { loadConfig, resolveConfigPath, resolveBasePrompt, resolveArtifactsPrompt, initLlmPartyHome, configExists } from "./config/loader.js";
 import { Orchestrator } from "./orchestrator.js";
 import { App } from "./ui/App.js";
+import { ConfigWizard } from "./ui/ConfigWizard.js";
 import { toTag } from "./utils.js";
 
 async function main(): Promise<void> {
@@ -20,6 +21,34 @@ async function main(): Promise<void> {
 
   await initLlmPartyHome(appRoot);
 
+  const renderer = await createCliRenderer({
+    exitOnCtrlC: false,
+    useMouse: true,
+    useKittyKeyboard: {},
+  });
+
+  process.on("SIGINT", () => {
+    renderer.destroy();
+  });
+
+  const root = createRoot(renderer);
+  const hasConfig = await configExists();
+
+  if (!hasConfig) {
+    root.render(
+      React.createElement(ConfigWizard, {
+        isFirstRun: true,
+        onComplete: async () => {
+          await bootApp(appRoot, renderer, root);
+        },
+      })
+    );
+  } else {
+    await bootApp(appRoot, renderer, root);
+  }
+}
+
+async function bootApp(appRoot: string, renderer: CliRenderer, root: Root): Promise<void> {
   const configPath = await resolveConfigPath(appRoot);
   const config = await loadConfig(configPath);
   const humanName = config.humanName?.trim() || "USER";
@@ -111,22 +140,7 @@ async function main(): Promise<void> {
     agentTimeouts
   );
 
-  const renderer = await createCliRenderer({
-    exitOnCtrlC: false,
-    useMouse: true,
-    useKittyKeyboard: {},
-    onDestroy: () => {
-      Promise.allSettled(adapters.map((a) => a.destroy()));
-    },
-  });
-
-  // SIGINT fallback: if terminal doesn't support Kitty keyboard protocol,
-  // Ctrl+C sends SIGINT instead of a keypress
-  process.on("SIGINT", () => {
-    renderer.destroy();
-  });
-
-  createRoot(renderer).render(
+  root.render(
     React.createElement(App, { orchestrator, maxAutoHops, renderer })
   );
 }

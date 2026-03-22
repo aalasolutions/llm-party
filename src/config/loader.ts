@@ -151,12 +151,14 @@ export async function initLlmPartyHome(appRoot: string): Promise<void> {
     await writeFile(librariesYml, "libraries: []\n", "utf8");
   }
 
-  const globalConfig = path.join(LLM_PARTY_HOME, "config.json");
+}
+
+export async function configExists(): Promise<boolean> {
   try {
-    await access(globalConfig);
+    await access(path.join(LLM_PARTY_HOME, "config.json"));
+    return true;
   } catch {
-    const bundledConfig = await readFile(path.join(appRoot, "configs", "default.json"), "utf8");
-    await writeFile(globalConfig, bundledConfig, "utf8");
+    return false;
   }
 }
 

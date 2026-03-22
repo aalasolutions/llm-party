@@ -71,7 +71,7 @@ export async function detectProviders(): Promise<DetectionResult[]> {
       return {
         id: provider.id,
         available: result.available,
-        version: "version" in result ? result.version : undefined,
+        version: "version" in result ? (result as { version?: string }).version : undefined,
       };
     })
   );
