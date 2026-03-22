@@ -50,7 +50,7 @@ No MCP. No master/servant. No window juggling. Just peers at a terminal table.
 
 ### Prerequisites
 
-Node.js 20+ is required (22+ if using the Copilot provider, which depends on `node:sqlite`). Make sure at least one AI CLI is installed and authenticated:
+Bun runtime and Node.js 20+ are required (22+ if using the Copilot provider, which depends on `node:sqlite`). Make sure at least one AI CLI is installed and authenticated:
 
 ```bash
 claude --version        # Claude Code CLI
@@ -329,6 +329,7 @@ File changes made by agents are detected via `git status` after each response. N
 | `/save <path>` | Export conversation as JSON                  |
 | `/session`     | Show session ID and transcript path          |
 | `/changes`     | Show git-modified files                      |
+| `/clear`       | Clear chat display (Ctrl+L also works)           |
 | `/exit`        | Quit (graceful shutdown, all adapters cleaned up) |
 
 <br/>
@@ -338,21 +339,21 @@ File changes made by agents are detected via `git status` after each response. N
 ```bash
 git clone https://github.com/aalasolutions/llm-party.git
 cd llm-party
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 Build and run:
 
 ```bash
-npm run build
-npm start
+bun run build
+bun start
 ```
 
 Override config:
 
 ```bash
-LLM_PARTY_CONFIG=/path/to/config.json npm run dev
+LLM_PARTY_CONFIG=/path/to/config.json bun run dev
 ```
 
 <br/>
