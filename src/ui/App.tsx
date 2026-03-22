@@ -3,7 +3,7 @@ import { useKeyboard } from "@opentui/react";
 import type { ScrollBoxRenderable, CliRenderer } from "@opentui/core";
 import { spawn } from "node:child_process";
 import { Orchestrator } from "../orchestrator.js";
-import { useOrchestrator } from "./useOrchestrator.js";
+import { useOrchestrator, getChangedFiles } from "./useOrchestrator.js";
 import { MessageBubble } from "./MessageBubble.js";
 import { StatusBar } from "./StatusBar.js";
 import { InputLine } from "./InputLine.js";
@@ -128,13 +128,7 @@ if (line === "/session") {
     }
 
     if (line === "/changes") {
-      const { execFile } = await import("node:child_process");
-      const files = await new Promise<string[]>((resolve) => {
-        execFile("git", ["status", "--porcelain"], { cwd: process.cwd() }, (err, stdout) => {
-          if (err) { resolve([]); return; }
-          resolve(stdout.split("\n").filter((l) => l.length >= 4).map((l) => l.slice(3)));
-        });
-      });
+      const files = await getChangedFiles();
       addSystemMessage(
         files.length > 0
           ? `Modified files:\n${files.map((f) => `  ${f}`).join("\n")}`

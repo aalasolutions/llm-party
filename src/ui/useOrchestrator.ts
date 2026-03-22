@@ -222,7 +222,7 @@ async function dispatchWithHandoffs(
   }
 }
 
-function getChangedFiles(): Promise<string[]> {
+export function getChangedFiles(): Promise<string[]> {
   return new Promise((resolve) => {
     execFile("git", ["status", "--porcelain"], { cwd: process.cwd() }, (error, stdout) => {
       if (error) { resolve([]); return; }
