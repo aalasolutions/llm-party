@@ -126,10 +126,15 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
 
   // Run detection on mount
   useEffect(() => {
-    detectProviders().then((results) => {
-      setDetection(results);
-      setStep("providers");
-    });
+    detectProviders()
+      .then((results) => {
+        setDetection(results);
+        setStep("providers");
+      })
+      .catch(() => {
+        setDetection([]);
+        setStep("providers");
+      });
   }, []);
 
   // Build a lookup of existing agents by provider
@@ -265,6 +270,10 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
   // Configure step keyboard handling
   useKeyboard((key) => {
     if (step !== "configure") {
+      // Detect step: consume all keys, keyboard disabled during loading
+      if (step === "detect") {
+        return;
+      }
       // Done step: any key to continue
       if (step === "done") {
         if (key.name === "enter" || key.name === "return" || key.name === "space") {
