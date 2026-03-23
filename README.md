@@ -50,12 +50,13 @@ No MCP. No master/servant. No window juggling. Just peers at a terminal table.
 
 ### Prerequisites
 
-Bun runtime and Node.js 20+ are required (22+ if using the Copilot provider, which depends on `node:sqlite`). Make sure at least one AI CLI is installed and authenticated:
+[Bun](https://bun.sh) runtime is required. At least one AI CLI must be installed and authenticated:
 
 ```bash
-claude --version        # Claude Code CLI
-codex --version         # OpenAI Codex CLI
-copilot --version       # GitHub Copilot CLI
+bun --version            # Bun runtime
+claude --version         # Claude Code CLI
+codex --version          # OpenAI Codex CLI
+copilot --version        # GitHub Copilot CLI
 ```
 
 If a CLI doesn't work on its own, it won't work inside llm-party.
@@ -63,7 +64,7 @@ If a CLI doesn't work on its own, it won't work inside llm-party.
 ### Install
 
 ```bash
-npm install -g llm-party-cli
+bun add -g llm-party-cli
 ```
 
 ### First run
