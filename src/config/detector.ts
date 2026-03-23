@@ -17,7 +17,9 @@ function detectBinary(command: string): Promise<{ available: boolean; version?: 
       stdio: ["ignore", "pipe", "ignore"],
       shell: true,
       timeout: DETECT_TIMEOUT,
+      detached: true,
     });
+    proc.unref();
 
     let output = "";
     proc.stdout?.on("data", (chunk: Buffer) => {
@@ -47,7 +49,9 @@ function detectAlias(command: string): Promise<{ available: boolean }> {
     const proc = spawn(shell, ["-ic", `type ${command}`], {
       stdio: ["ignore", "pipe", "ignore"],
       timeout: DETECT_TIMEOUT,
+      detached: true,
     });
+    proc.unref();
 
     proc.on("close", (code) => {
       clearTimeout(timer);
