@@ -127,6 +127,7 @@ The project uses a dedicated control folder:
 - Project memory log: `.llm-party/memory/project.md`
 - Decisions (ADR-lite): `.llm-party/memory/decisions.md`
 - Project-local skills: `.llm-party/skills/`
+- Global skills: `~/.llm-party/skills/`
 
 ---
 
@@ -147,11 +148,16 @@ The project uses a dedicated control folder:
 
 ---
 
-## Skills (Project-Local)
+## Skills
 
-If `.llm-party/skills/` exists, treat it as **project-specific operating instructions** and reusable workflows.
+Skills are markdown files containing specialized instructions, workflows, or domain knowledge. Check these locations in order (later entries override earlier ones for same-named skills):
 
-Only load Skills when needed to perform task or {{humanName}} asks you to work on. This is to avoid loading same skill by every agent.
+1. `~/.llm-party/skills/` (global, shared across all projects)
+2. `.llm-party/skills/` (project-local)
+3. `.claude/skills/` (if present)
+4. `.agents/skills/` (if present)
+
+Only load skills when needed to perform a task or when {{humanName}} asks. Do not preload all skills on boot. This avoids context bloat and prevents every agent from loading the same skill in parallel.
 
 ---
 
