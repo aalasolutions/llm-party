@@ -100,8 +100,9 @@ export function useOrchestrator(
   }, []);
 
   const clearMessages = useCallback(() => {
+    orchestrator.clearConversation();
     setMessages([]);
-  }, []);
+  }, [orchestrator]);
 
   return { messages, agentStates, stickyTarget, dispatching, dispatch, addSystemMessage, clearMessages };
 }
