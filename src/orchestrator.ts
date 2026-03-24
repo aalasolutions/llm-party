@@ -214,15 +214,17 @@ export class Orchestrator {
     messages: ConversationMessage[],
     timeoutMs: number
   ): Promise<string> {
+    const controller = new AbortController();
     let timer: NodeJS.Timeout | undefined;
     const timeoutPromise = new Promise<string>((resolve) => {
       timer = setTimeout(() => {
+        controller.abort();
         resolve(`[Timeout] ${agent.name} exceeded ${Math.floor(timeoutMs / 1000)}s`);
       }, timeoutMs);
     });
 
     try {
-      return await Promise.race([agent.send(messages), timeoutPromise]);
+      return await Promise.race([agent.send(messages, controller.signal), timeoutPromise]);
     } finally {
       if (timer) {
         clearTimeout(timer);
