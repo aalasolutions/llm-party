@@ -23,9 +23,12 @@ export class CopilotAdapter implements AgentAdapter {
     await this.createSession();
   }
 
-  async send(messages: ConversationMessage[]): Promise<string> {
+  async send(messages: ConversationMessage[], signal?: AbortSignal): Promise<string> {
     if (!this.session) {
       return "[Copilot session not initialized]";
+    }
+    if (signal?.aborted) {
+      return "[Aborted] Copilot was cancelled";
     }
 
     const transcript = formatTranscript(messages);
