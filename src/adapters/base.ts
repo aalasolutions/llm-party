@@ -5,7 +5,7 @@ export interface AgentAdapter {
   provider: string;
   model: string;
   init(config: PersonaConfig): Promise<void>;
-  send(messages: ConversationMessage[]): Promise<string>;
+  send(messages: ConversationMessage[], signal?: AbortSignal): Promise<string>;
   destroy(): Promise<void>;
 }
 
