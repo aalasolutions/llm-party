@@ -33,9 +33,12 @@ export class CodexAdapter implements AgentAdapter {
     });
   }
 
-  async send(messages: ConversationMessage[]): Promise<string> {
+  async send(messages: ConversationMessage[], signal?: AbortSignal): Promise<string> {
     if (!this.thread) {
       return "[Codex thread not initialized]";
+    }
+    if (signal?.aborted) {
+      return "[Aborted] Codex was cancelled";
     }
 
     const turn = await this.thread.run(formatTranscript(messages));
