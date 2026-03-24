@@ -16,8 +16,8 @@ export class Orchestrator {
   private readonly lastSeenByAgent: Map<string, number> = new Map();
   private readonly humanName: string;
   private readonly humanTag: string;
-  private readonly sessionId: string;
-  private readonly transcriptPath: string;
+  private sessionId: string;
+  private transcriptPath: string;
   private readonly defaultTimeout: number;
   private readonly agentTimeouts: Map<string, number>;
   private readonly contextWindowSize: number;
@@ -70,6 +70,8 @@ export class Orchestrator {
     for (const agent of this.agents.keys()) {
       this.lastSeenByAgent.set(agent, 0);
     }
+    this.sessionId = createSessionId();
+    this.transcriptPath = path.resolve(".llm-party", "sessions", `transcript-${this.sessionId}.jsonl`);
   }
 
   getAdapters(): AgentAdapter[] {
