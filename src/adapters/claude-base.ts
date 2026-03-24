@@ -27,15 +27,15 @@ export abstract class ClaudeBaseAdapter implements AgentAdapter {
     return { ...process.env, ...(config.env ?? {}) };
   }
 
-  async send(messages: ConversationMessage[]): Promise<string> {
-    return await this.querySDK(formatTranscript(messages));
+  async send(messages: ConversationMessage[], signal?: AbortSignal): Promise<string> {
+    return await this.querySDK(formatTranscript(messages), signal);
   }
 
   async destroy(): Promise<void> {
     return;
   }
 
-  protected async querySDK(transcript: string): Promise<string> {
+  protected async querySDK(transcript: string, signal?: AbortSignal): Promise<string> {
     const executableOpt = this.claudeExecutable
       ? { pathToClaudeCodeExecutable: this.claudeExecutable }
       : {};
@@ -54,6 +54,10 @@ export abstract class ClaudeBaseAdapter implements AgentAdapter {
     };
 
     for await (const message of query({ prompt: transcript, options })) {
+      if (signal?.aborted) {
+        return `[Aborted] ${this.name} was cancelled`;
+      }
+
       if (
         message &&
         typeof message === "object" &&
