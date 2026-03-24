@@ -64,6 +64,14 @@ export class Orchestrator {
     return this.humanTag;
   }
 
+  clearConversation(): void {
+    this.conversation.length = 0;
+    this.messageId = 0;
+    for (const agent of this.agents.keys()) {
+      this.lastSeenByAgent.set(agent, 0);
+    }
+  }
+
   getAdapters(): AgentAdapter[] {
     return Array.from(this.agents.values());
   }
