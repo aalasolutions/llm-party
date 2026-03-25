@@ -269,6 +269,12 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
 
   // Configure step keyboard handling
   useKeyboard((key) => {
+    // Ctrl+C: exit app from any step (triggers SIGINT handler in index.ts which cleans up renderer)
+    if (key.ctrl && key.name === "c") {
+      process.kill(process.pid, "SIGINT");
+      return;
+    }
+
     if (step !== "configure") {
       // Detect step: consume all keys, keyboard disabled during loading
       if (step === "detect") {
