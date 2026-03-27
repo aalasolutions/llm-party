@@ -89,11 +89,18 @@ Rules:
 
 ### `.llm-party/skills/`
 
-Project-local operating instructions and reusable workflows.
+Project-local skills. Each skill is a folder containing a `SKILL.md` file:
 
-Each skill is a `.md` file. Agents read relevant skills before executing unfamiliar workflows.
+```
+skills/
+  skill-name/
+    SKILL.md          # Required. YAML frontmatter (name, description) + markdown instructions.
+    scripts/           # Optional. Executable code (Python/JS) for deterministic tasks.
+    references/        # Optional. Docs loaded into context as needed.
+    assets/            # Optional. Templates, icons, fonts used in output.
+```
 
-No fixed schema. Content is written by {{humanName}} or agents when instructed.
+Agents read relevant skills before executing unfamiliar workflows. Keep `SKILL.md` concise (under 5,000 words) and offload detail into `references/`.
 
 ---
 
@@ -108,6 +115,9 @@ Created when {{humanName}} requests initialization or the orchestrator runs an i
     mind-map/
   agents/
     {{agentTag}}.md
+  skills/
+    skill-name/
+      SKILL.md
 ```
 
 Additional folders/files (`config.json`, `sessions/`, etc.) may be added by the orchestrator code. Their schemas are managed in code, not in this prompt.
