@@ -36,6 +36,9 @@ export function useOrchestrator(
   const agentProviders = useRef(
     new Map(orchestrator.listAgents().map((a) => [a.name.toUpperCase(), a.provider]))
   );
+  const agentTags = useRef(
+    new Map(orchestrator.listAgents().map((a) => [a.name.toUpperCase(), a.tag]))
+  );
 
   const dispatch = useCallback(async (line: string) => {
     if (!line.trim()) return;
@@ -80,6 +83,7 @@ export function useOrchestrator(
         targets,
         maxAutoHops,
         agentProviders.current,
+        agentTags.current,
         setMessages,
         setAgentStates
       );
@@ -112,6 +116,7 @@ async function dispatchWithHandoffs(
   initialTargets: string[] | undefined,
   maxHops: number,
   agentProviders: Map<string, string>,
+  agentTags: Map<string, string>,
   setMessages: React.Dispatch<React.SetStateAction<DisplayMessage[]>>,
   setAgentStates: React.Dispatch<React.SetStateAction<Map<string, AgentState>>>
 ): Promise<void> {
@@ -139,10 +144,12 @@ async function dispatchWithHandoffs(
     await orchestrator.fanOutWithProgress(targets, (msg) => {
       batch.push(msg);
       const provider = agentProviders.get(msg.from) ?? "";
+      const tag = agentTags.get(msg.from) ?? "";
       const display: DisplayMessage = {
         ...msg,
         type: "agent",
         provider,
+        tag,
       };
       setMessages((prev) => [...prev, display]);
 
@@ -169,15 +176,14 @@ async function dispatchWithHandoffs(
 
     const humanTag = orchestrator.getHumanTag().toLowerCase();
     const humanName = orchestrator.getHumanName().toLowerCase();
-    if (nextSelectors.some((s) => {
+    const agentSelectors = nextSelectors.filter((s) => {
       const n = s.toLowerCase();
-      return n === humanTag || n === humanName;
-    })) {
-      return;
-    }
+      return n !== humanTag && n !== humanName;
+    });
+    if (agentSelectors.length === 0) return;
 
     const resolvedTargets = Array.from(
-      new Set(nextSelectors.flatMap((s) => orchestrator.resolveTargets(s)))
+      new Set(agentSelectors.flatMap((s) => orchestrator.resolveTargets(s)))
     );
     if (resolvedTargets.length === 0) return;
 

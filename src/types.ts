@@ -33,4 +33,5 @@ export type MessageType = "user" | "agent" | "system";
 export interface DisplayMessage extends ConversationMessage {
   type: MessageType;
   provider?: string;
+  tag?: string;
 }

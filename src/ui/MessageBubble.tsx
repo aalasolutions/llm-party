@@ -23,8 +23,8 @@ export function MessageBubble({ message, humanName }: Props) {
     );
   }
 
-  const label = message.provider
-    ? formatAgentLabel(message.from, message.provider)
+  const label = message.tag
+    ? formatAgentLabel(message.from, message.tag)
     : message.from;
 
   return (

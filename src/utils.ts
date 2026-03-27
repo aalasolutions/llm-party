@@ -7,6 +7,6 @@ export function toTag(value: string): string {
   return compact || "agent";
 }
 
-export function formatAgentLabel(name: string, provider: string): string {
-  return `${name} · ${provider}`;
+export function formatAgentLabel(name: string, tag: string): string {
+  return `${name} · @${tag}`;
 }

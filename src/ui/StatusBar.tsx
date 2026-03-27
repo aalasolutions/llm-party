@@ -30,7 +30,12 @@ function useThinkingAnimation(active: boolean): { spinner: string; color: string
 }
 
 export function StatusBar({ agents, agentStates, sessionId, stickyTarget }: Props) {
-  const target = stickyTarget ? `@${stickyTarget.join(", @")}` : "@all";
+  const target = stickyTarget
+    ? stickyTarget.map((name) => {
+        const agent = agents.find((a) => a.name === name);
+        return agent ? `${agent.tag} - ${agent.provider}` : name;
+      }).join(", ")
+    : "all";
 
   return (
     <box paddingX={1} flexShrink={0}>
