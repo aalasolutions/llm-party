@@ -51,6 +51,7 @@ export async function writeWizardConfig(
 
     // Preserve prompts and other fields from existing config
     if (existing?.prompts) agent.prompts = existing.prompts;
+    if (existing?.preloadSkills) agent.preloadSkills = existing.preloadSkills;
     if (existing?.executablePath) agent.executablePath = existing.executablePath;
     if (existing?.timeout) agent.timeout = existing.timeout;
 
