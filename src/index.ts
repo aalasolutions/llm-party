@@ -10,7 +10,7 @@ import { ClaudeAdapter } from "./adapters/claude.js";
 import { CodexAdapter } from "./adapters/codex.js";
 import { CopilotAdapter } from "./adapters/copilot.js";
 import { GlmAdapter } from "./adapters/glm.js";
-import { loadConfig, resolveConfigPath, resolveBasePrompt, resolveArtifactsPrompt, initLlmPartyHome, configExists } from "./config/loader.js";
+import { loadConfig, resolveConfigPath, resolveBasePrompt, resolveArtifactsPrompt, resolveObsidianPrompt, discoverSkills, initLlmPartyHome, configExists } from "./config/loader.js";
 import { Orchestrator } from "./orchestrator.js";
 import { App } from "./ui/App.js";
 import { ConfigWizard } from "./ui/ConfigWizard.js";
@@ -57,7 +57,29 @@ async function bootApp(appRoot: string, renderer: CliRenderer, root: Root): Prom
 
   const basePrompt = await resolveBasePrompt(appRoot);
   const artifactsPrompt = await resolveArtifactsPrompt(appRoot);
-  const mergedBase = basePrompt + "\n\n---\n\n" + artifactsPrompt;
+  const obsidianPrompt = await resolveObsidianPrompt(appRoot);
+  const mergedBase = basePrompt + "\n\n---\n\n" + artifactsPrompt + "\n\n---\n\n" + obsidianPrompt;
+
+  // Skill discovery
+  const availableSkills = await discoverSkills();
+  const agentVerifiedSkills = new Map<string, string[]>();
+
+  for (const agent of config.agents) {
+    if (agent.preloadSkills && agent.preloadSkills.length > 0) {
+      const verified: string[] = [];
+      const report: string[] = [];
+      for (const skillName of agent.preloadSkills) {
+        if (availableSkills.has(skillName)) {
+          verified.push(skillName);
+          report.push(`${skillName} \u2713`);
+        } else {
+          report.push(`${skillName} \u2717 not found`);
+        }
+      }
+      agentVerifiedSkills.set(agent.name, verified);
+      process.stdout.write(`Skills for ${agent.name}: ${report.join(", ")}\n`);
+    }
+  }
 
   const configDir = path.dirname(configPath);
   const resolveFromConfig = (value: string): string => {
@@ -81,7 +103,9 @@ async function bootApp(appRoot: string, renderer: CliRenderer, root: Root): Prom
         ? peers
             .map((peer) => {
               const peerTag = peer.tag?.trim() || toTag(peer.name);
-              return `- ${peer.name}: use @${peerTag}`;
+              const peerSkills = agentVerifiedSkills.get(peer.name) || [];
+              const skillLabel = peerSkills.length > 0 ? ` [${peerSkills.join(", ")}]` : "";
+              return `- ${peer.name}${skillLabel}: use @${peerTag}`;
             })
             .join("\n")
         : "- None";
@@ -89,6 +113,11 @@ async function bootApp(appRoot: string, renderer: CliRenderer, root: Root): Prom
       const validHandoffTargets = peers.length > 0
         ? peers.map((peer) => `@next:${peer.tag?.trim() || toTag(peer.name)}`).join(", ")
         : "none";
+
+      const mySkills = agentVerifiedSkills.get(agent.name) || [];
+      const preloadedSkills = mySkills.length > 0
+        ? `The following skills are assigned to you. Load them at boot:\n${mySkills.map((s) => `- ${s}`).join("\n")}`
+        : "";
 
       const prompt = renderPromptTemplate(promptTemplate, {
         humanName,
@@ -100,7 +129,8 @@ async function bootApp(appRoot: string, renderer: CliRenderer, root: Root): Prom
         otherAgentNames: peers.map((peer) => peer.name).join(", ") || "none",
         allAgentNames: allAgents.map((candidate) => candidate.name).join(", "),
         allAgentTags: allAgents.map((candidate) => `@${candidate.tag?.trim() || toTag(candidate.name)}`).join(", "),
-        agentCount: String(allAgents.length)
+        agentCount: String(allAgents.length),
+        preloadedSkills,
       });
 
       const adapter =
