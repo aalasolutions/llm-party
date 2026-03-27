@@ -263,6 +263,7 @@ Override with `LLM_PARTY_CONFIG` env var to point to a different file.
 | `executablePath` | No       | PATH lookup              | Path to the CLI binary. Supports `~/`. Only needed if the CLI is not in your PATH                 |
 | `env`            | No       | inherits `process.env` | Environment variable overrides for this agent                                                       |
 | `timeout`        | No       | top-level value          | Per-agent timeout override in seconds                                                               |
+| `preloadSkills`  | No       | none                     | Array of skill names to load at boot. Skills are discovered from `~/.llm-party/skills/`, `.llm-party/skills/`, `.claude/skills/`, `.agents/skills/` |
 
 ### Prompts
 
@@ -291,6 +292,7 @@ Template variables available in prompt files:
 | `{{allAgentTags}}`        | All agent tags as `@tag`    |
 | `{{otherAgentList}}`      | Other agents with their tags  |
 | `{{validHandoffTargets}}` | Valid `@next:tag` targets   |
+| `{{preloadedSkills}}`     | Skills assigned to this agent via `preloadSkills` |
 
 ### GLM environment setup
 
@@ -310,6 +312,36 @@ GLM requires environment overrides to route through a proxy. The adapter tries t
   }
 }
 ```
+
+<br/>
+
+## Skills
+
+Skills are folders containing a `SKILL.md` file with specialized instructions for specific workflows. Agents discover skills from these locations (in order):
+
+1. `~/.llm-party/skills/` (global, shared across all projects)
+2. `.llm-party/skills/` (project-local)
+3. `.claude/skills/` (if present)
+4. `.agents/skills/` (if present)
+
+Assign skills to agents with `preloadSkills` in config:
+
+```json
+{
+  "name": "Reviewer",
+  "provider": "claude",
+  "model": "opus",
+  "preloadSkills": ["aala-review"]
+}
+```
+
+At boot, the orchestrator verifies each skill exists and reports status per agent. Skills assigned to an agent are also shown in the team directory visible to all peers.
+
+<br/>
+
+## Mind-map
+
+Agents capture tool and resource constraints as Obsidian-compatible notes in `~/.llm-party/network/mind-map/`. Each discovery is a `.md` file with frontmatter and `[[wikilinks]]` connecting related findings. Open the folder in Obsidian to visualize the knowledge graph across projects.
 
 <br/>
 
