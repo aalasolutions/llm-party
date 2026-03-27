@@ -13,6 +13,7 @@ export interface PersonaConfig {
   provider: "claude" | "copilot" | "codex" | "glm";
   model: string;
   prompts?: string[];
+  preloadSkills?: string[];
   resolvedPrompt?: string;
   env?: Record<string, string>;
   executablePath?: string;
