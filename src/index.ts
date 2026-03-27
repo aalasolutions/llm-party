@@ -59,8 +59,9 @@ async function bootApp(appRoot: string, renderer: CliRenderer, root: Root): Prom
   const artifactsPrompt = await resolveArtifactsPrompt(appRoot);
   const mergedBase = basePrompt + "\n\n---\n\n" + artifactsPrompt;
 
-  const resolveFromAppRoot = (value: string): string => {
-    return path.isAbsolute(value) ? value : path.resolve(appRoot, value);
+  const configDir = path.dirname(configPath);
+  const resolveFromConfig = (value: string): string => {
+    return path.isAbsolute(value) ? value : path.resolve(configDir, value);
   };
 
   const adapters = await Promise.all(
@@ -68,7 +69,7 @@ async function bootApp(appRoot: string, renderer: CliRenderer, root: Root): Prom
       const promptParts = [mergedBase];
 
       if (agent.prompts && agent.prompts.length > 0) {
-        const extraPaths = agent.prompts.map((p) => resolveFromAppRoot(p));
+        const extraPaths = agent.prompts.map((p) => resolveFromConfig(p));
         const extraParts = await Promise.all(extraPaths.map((p) => readFile(p, "utf8")));
         promptParts.push(...extraParts);
       }
