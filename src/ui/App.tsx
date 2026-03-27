@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { useKeyboard } from "@opentui/react";
 import type { ScrollBoxRenderable, CliRenderer } from "@opentui/core";
 import { spawn } from "node:child_process";
@@ -44,15 +44,7 @@ export function App({ orchestrator, maxAutoHops, renderer, config }: AppProps) {
   const [screen, setScreen] = useState<"chat" | "config">("chat");
   const [showAgents, setShowAgents] = useState(false);
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    const sb = scrollRef.current;
-    if (sb && !sb.isDestroyed) {
-      sb.scrollTo(sb.scrollHeight);
-    }
-  }, [messages]);
-
-  const gracefulExit = useCallback(() => {
+const gracefulExit = useCallback(() => {
     renderer.destroy();
     const adapters = orchestrator.getAdapters();
     Promise.allSettled(adapters.map((a) => a.destroy()));
