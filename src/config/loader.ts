@@ -1,4 +1,4 @@
-import { readFile, writeFile, access, mkdir } from "node:fs/promises";
+import { readFile, readdir, writeFile, access, mkdir } from "node:fs/promises";
 import { homedir, userInfo } from "node:os";
 import path from "node:path";
 import { PROVIDERS } from "./defaults.js";
@@ -57,6 +57,13 @@ function validateConfig(data: unknown): void {
         throw new Error(`Agent '${agent.name}' prompts must be a string array`);
       }
     }
+
+    if (agent.preloadSkills !== undefined) {
+      const isArray = Array.isArray(agent.preloadSkills) && (agent.preloadSkills as unknown[]).every((p) => typeof p === "string");
+      if (!isArray) {
+        throw new Error(`Agent '${agent.name}' preloadSkills must be a string array`);
+      }
+    }
   }
 }
 
@@ -102,6 +109,47 @@ export async function resolveArtifactsPrompt(appRoot: string): Promise<string> {
   return await readFile(bundledArtifacts, "utf8");
 }
 
+export async function resolveObsidianPrompt(appRoot: string): Promise<string> {
+  const bundledObsidian = path.join(appRoot, "prompts", "obsidian.md");
+  return await readFile(bundledObsidian, "utf8");
+}
+
+export interface DiscoveredSkill {
+  name: string;
+  path: string;
+}
+
+export async function discoverSkills(): Promise<Map<string, DiscoveredSkill>> {
+  const skills = new Map<string, DiscoveredSkill>();
+  const locations = [
+    path.join(LLM_PARTY_HOME, "skills"),
+    path.join(process.cwd(), ".llm-party", "skills"),
+    path.join(process.cwd(), ".claude", "skills"),
+    path.join(process.cwd(), ".agents", "skills"),
+  ];
+
+  for (const location of locations) {
+    try {
+      const entries = await readdir(location, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const skillPath = path.join(location, entry.name, "SKILL.md");
+          try {
+            await access(skillPath);
+            skills.set(entry.name, { name: entry.name, path: skillPath });
+          } catch {
+            // No SKILL.md in this folder, skip
+          }
+        }
+      }
+    } catch {
+      // Location doesn't exist, skip
+    }
+  }
+
+  return skills;
+}
+
 async function ensureFile(filePath: string, defaultContent: string): Promise<void> {
   try {
     await access(filePath);
@@ -128,13 +176,23 @@ export async function initLlmPartyHome(appRoot: string): Promise<void> {
   await mkdir(path.join(LLM_PARTY_HOME, "sessions"), { recursive: true });
   await mkdir(path.join(LLM_PARTY_HOME, "network"), { recursive: true });
   await mkdir(path.join(LLM_PARTY_HOME, "agents"), { recursive: true });
+  await mkdir(path.join(LLM_PARTY_HOME, "skills"), { recursive: true });
 
   await ensureFile(path.join(LLM_PARTY_HOME, "network", "projects.yml"), "projects: []\n");
-  await ensureFile(path.join(LLM_PARTY_HOME, "network", "libraries.yml"), "libraries: []\n");
+  await mkdir(path.join(LLM_PARTY_HOME, "network", "mind-map"), { recursive: true });
 
 }
 
 export async function configExists(): Promise<boolean> {
+  if (process.env.LLM_PARTY_CONFIG) {
+    try {
+      await access(path.resolve(process.env.LLM_PARTY_CONFIG));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   try {
     await access(path.join(LLM_PARTY_HOME, "config.json"));
     return true;
