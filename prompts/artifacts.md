@@ -105,7 +105,7 @@ Created when {{humanName}} requests initialization or the orchestrator runs an i
 ~/.llm-party/
   network/
     projects.yml
-    libraries.yml
+    mind-map/
   agents/
     {{agentTag}}.md
 ```
@@ -138,26 +138,36 @@ Rules:
 
 ---
 
-### `~/.llm-party/network/libraries.yml`
+### `~/.llm-party/network/mind-map/`
 
-Hard-won library knowledge. Limitations, workarounds, version constraints.
+Obsidian-compatible folder. Each discovery is its own `.md` file with frontmatter and wikilinks. Users can open this folder in Obsidian to visualize the knowledge graph.
 
-**Schema:**
-```yaml
-libraries:
-  - name: library-name
-    version: "x.y.z or range or null"
-    limitation: what the library cannot do or does wrong
-    workaround: how to work around it
-    discovered: YYYY-MM-DD
-    agent: agentTag
-    projects:
-      - project-slug
+**Note format:**
+```markdown
+---
+discovered: YYYY-MM-DD
+agent: agentTag
+projects: [project-slug]
+tags: [relevant, tags]
+---
+
+# Descriptive Title
+
+What the constraint or discovery is.
+
+## Workaround
+How to work around it.
+
+## Related
+- [[other-discovery-filename]]
 ```
 
+**File naming:** slugified title, e.g. `react-19-useeffect.md`, `figma-autolayout-nesting.md`.
+
 Rules:
-- Write here when a library limitation is discovered that would trap a future session
-- Include workaround. A limitation without a workaround is incomplete.
+- Write here when a tool or resource constraint is discovered that would trap a future session
+- Include workaround. A constraint without a workaround is incomplete.
+- Use `[[wikilinks]]` to connect related discoveries
 
 ---
 
