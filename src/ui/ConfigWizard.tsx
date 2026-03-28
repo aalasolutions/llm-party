@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useKeyboard } from "@opentui/react";
+import { createSignal, createEffect, onCleanup, Show, For, Index } from "solid-js";
+import { useKeyboard } from "@opentui/solid";
 import { userInfo } from "node:os";
 import { PROVIDERS } from "../config/defaults.js";
 import { detectProviders, type DetectionResult } from "../config/detector.js";
@@ -36,13 +36,13 @@ interface HumanConfig {
 // Braille spinner frames for detection step
 // Use shared spinner frames from constants
 
-function useSpinner(): string {
-  const [frame, setFrame] = useState(0);
-  useEffect(() => {
+function useSpinner(): () => string {
+  const [frame, setFrame] = createSignal(0);
+  createEffect(() => {
     const interval = setInterval(() => setFrame((f) => (f + 1) % SPINNER_FRAMES.length), 80);
-    return () => clearInterval(interval);
-  }, []);
-  return SPINNER_FRAMES[frame];
+    onCleanup(() => clearInterval(interval));
+  });
+  return () => SPINNER_FRAMES[frame()];
 }
 
 // Sweep title: disco lights animate around a centered title
@@ -50,22 +50,22 @@ const SWEEP_CHARS = ["░", "▒", "▓", "█", "▓", "▒", "░"];
 // PARTY_COLORS imported from theme.ts
 const BAR_WIDTH = 6; // chars per side
 
-function SweepBar({ title }: { title: string }) {
+function SweepBar(props: { title: string }) {
   const glow = SWEEP_CHARS.length;
-  const totalWidth = BAR_WIDTH * 2 + title.length + 2; // +2 for spaces around title
-  const [pos, setPos] = useState(0);
-  useEffect(() => {
+  const totalWidth = BAR_WIDTH * 2 + props.title.length + 2; // +2 for spaces around title
+  const [pos, setPos] = createSignal(0);
+  createEffect(() => {
     const interval = setInterval(() => setPos((p) => (p + 1) % (BAR_WIDTH + glow)), 50);
-    return () => clearInterval(interval);
-  }, []);
+    onCleanup(() => clearInterval(interval));
+  });
 
   function buildSide(reverse: boolean) {
     const spans: Array<{ char: string; color: string }> = [];
     for (let i = 0; i < BAR_WIDTH; i++) {
       const idx = reverse ? BAR_WIDTH - 1 - i : i;
-      const dist = idx - pos;
+      const dist = idx - pos();
       if (dist >= 0 && dist < glow) {
-        const colorIdx = Math.floor((pos + idx) / 2) % PARTY_COLORS.length;
+        const colorIdx = Math.floor((pos() + idx) / 2) % PARTY_COLORS.length;
         const intensity = 1 - Math.abs(dist - 3) / 3;
         spans.push({
           char: SWEEP_CHARS[dist],
@@ -78,54 +78,54 @@ function SweepBar({ title }: { title: string }) {
     return spans;
   }
 
-  const left = buildSide(false);
-  const right = buildSide(true);
+  const left = () => buildSide(false);
+  const right = () => buildSide(true);
 
   return (
     <text>
-      {left.map((s, i) => (
-        <span key={"l" + i} fg={s.color}>{s.char}</span>
-      ))}
-      <span fg={COLORS.textPrimary}><strong>{" "}{title}{" "}</strong></span>
-      {right.map((s, i) => (
-        <span key={"r" + i} fg={s.color}>{s.char}</span>
-      ))}
+      <For each={left()}>{(s) => (
+        <span style={{ fg: s.color }}>{s.char}</span>
+      )}</For>
+      <span style={{ fg: COLORS.textPrimary }}><strong>{" "}{props.title}{" "}</strong></span>
+      <For each={right()}>{(s) => (
+        <span style={{ fg: s.color }}>{s.char}</span>
+      )}</For>
     </text>
   );
 }
 
 // Disco border accent: color-cycling side decorations
-function useDiscoColor(): string {
-  const [idx, setIdx] = useState(0);
-  useEffect(() => {
+function useDiscoColor(): () => string {
+  const [idx, setIdx] = createSignal(0);
+  createEffect(() => {
     const interval = setInterval(() => setIdx((i) => (i + 1) % PARTY_COLORS.length), 800);
-    return () => clearInterval(interval);
-  }, []);
-  return PARTY_COLORS[idx];
+    onCleanup(() => clearInterval(interval));
+  });
+  return () => PARTY_COLORS[idx()];
 }
 
-export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig }: ConfigWizardProps) {
-  const [step, setStep] = useState<WizardStep>("detect");
-  const [detection, setDetection] = useState<DetectionResult[]>([]);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [, setAgentConfigs] = useState<AgentConfig[]>([]);
-  const [activeTab, setActiveTab] = useState(0);
-  const [focusedField, setFocusedField] = useState(0); // 0=name, 1=tag, 2=model
-  const [error, setError] = useState("");
-  const [, forceRender] = useState(0);
+export function ConfigWizard(props: ConfigWizardProps) {
+  const [step, setStep] = createSignal<WizardStep>("detect");
+  const [detection, setDetection] = createSignal<DetectionResult[]>([]);
+  const [selectedIds, setSelectedIds] = createSignal<string[]>([]);
+  const [, setAgentConfigs] = createSignal<AgentConfig[]>([]);
+  const [activeTab, setActiveTab] = createSignal(0);
+  const [focusedField, setFocusedField] = createSignal(0); // 0=name, 1=tag, 2=model
+  const [error, setError] = createSignal("");
+  const [tick, setTick] = createSignal(0);
 
-  // Use refs for input values to avoid parent re-renders on keystroke
-  const inputRefs = useRef<AgentConfig[]>([]);
-  const humanRef = useRef<HumanConfig>({
-    name: existingConfig?.humanName || userInfo().username || "USER",
-    tag: existingConfig?.humanTag || toTag(existingConfig?.humanName || userInfo().username || "USER"),
-  });
-  const cursorRef = useRef(0);
+  // Use plain mutable variables instead of refs
+  let inputRefsData: AgentConfig[] = [];
+  let humanData: HumanConfig = {
+    name: props.existingConfig?.humanName || userInfo().username || "USER",
+    tag: props.existingConfig?.humanTag || toTag(props.existingConfig?.humanName || userInfo().username || "USER"),
+  };
+  let cursorPos = 0;
 
   const spinner = useSpinner();
 
   // Run detection on mount
-  useEffect(() => {
+  createEffect(() => {
     detectProviders()
       .then((results) => {
         setDetection(results);
@@ -135,21 +135,21 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
         setDetection([]);
         setStep("providers");
       });
-  }, []);
+  });
 
   // Build a lookup of existing agents by provider
-  const existingByProvider = new Map(
-    (existingConfig?.agents || []).map((a) => [a.provider, a])
+  const existingByProvider = () => new Map(
+    (props.existingConfig?.agents || []).map((a) => [a.provider, a])
   );
 
   // Pre-select indices of providers that exist in current config
-  const initialSelected = existingConfig
-    ? PROVIDERS.map((p, i) => existingByProvider.has(p.id) ? i : -1).filter((i) => i >= 0)
+  const initialSelected = () => props.existingConfig
+    ? PROVIDERS.map((p, i) => existingByProvider().has(p.id) ? i : -1).filter((i) => i >= 0)
     : undefined;
 
   // Build MultiSelect items from detection results
-  const multiSelectItems: MultiSelectItem[] = PROVIDERS.map((provider) => {
-    const result = detection.find((d) => d.id === provider.id);
+  const multiSelectItems = (): MultiSelectItem[] => PROVIDERS.map((provider) => {
+    const result = detection().find((d) => d.id === provider.id);
     const available = result?.available ?? false;
     return {
       label: provider.displayName,
@@ -158,46 +158,43 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
     };
   });
 
-  const handleProviderConfirm = useCallback(
-    (selectedIndices: number[]) => {
-      const ids = selectedIndices.map((i) => PROVIDERS[i].id);
-      setSelectedIds(ids);
+  const handleProviderConfirm = (selectedIndices: number[]) => {
+    const ids = selectedIndices.map((i) => PROVIDERS[i].id);
+    setSelectedIds(ids);
 
-      const configs = ids.map((id) => {
-        const def = PROVIDERS.find((p) => p.id === id)!;
-        const existing = existingByProvider.get(id);
-        return {
-          id: def.id,
-          name: existing?.name || def.displayName,
-          tag: existing?.tag || def.defaultTag,
-          model: existing?.model || def.defaultModel,
-        };
-      });
+    const configs = ids.map((id) => {
+      const def = PROVIDERS.find((p) => p.id === id)!;
+      const existing = existingByProvider().get(id);
+      return {
+        id: def.id,
+        name: existing?.name || def.displayName,
+        tag: existing?.tag || def.defaultTag,
+        model: existing?.model || def.defaultModel,
+      };
+    });
 
-      setAgentConfigs(configs);
-      inputRefs.current = configs.map((c) => ({ ...c }));
-      setActiveTab(0);
-      setFocusedField(0);
-      cursorRef.current = configs[0]?.name.length || 0;
-      setStep("configure");
-    },
-    [existingByProvider]
-  );
+    setAgentConfigs(configs);
+    inputRefsData = configs.map((c) => ({ ...c }));
+    setActiveTab(0);
+    setFocusedField(0);
+    cursorPos = configs[0]?.name.length || 0;
+    setStep("configure");
+  };
 
-  const handleProviderCancel = useCallback(() => {
-    if (onCancel) onCancel();
-  }, [onCancel]);
+  const handleProviderCancel = () => {
+    if (props.onCancel) props.onCancel();
+  };
 
   // Tab 0 = "You", tabs 1+ = agents
   // "You" tab has 2 fields (name, tag), agent tabs have 3 (name, tag, model)
-  const isYouTab = activeTab === 0;
-  const agentTabIndex = activeTab - 1;
-  const totalTabs = (inputRefs.current?.length || 0) + 1;
-  const maxFieldIndex = isYouTab ? 1 : 2; // 0-indexed: You=0,1  Agent=0,1,2
+  const isYouTab = () => activeTab() === 0;
+  const agentTabIndex = () => activeTab() - 1;
+  const totalTabs = () => (inputRefsData?.length || 0) + 1;
+  const maxFieldIndex = () => isYouTab() ? 1 : 2; // 0-indexed: You=0,1  Agent=0,1,2
 
-  const saveConfig = useCallback(async () => {
-    const configs = inputRefs.current;
-    const human = humanRef.current;
+  const saveConfig = async () => {
+    const configs = inputRefsData;
+    const human = humanData;
 
     // Validate human
     if (!human.name.trim()) {
@@ -253,19 +250,19 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
 
     // Merge human config into existing
     const mergedExisting: AppConfig = {
-      ...(existingConfig || {}),
+      ...(props.existingConfig || {}),
       humanName: human.name.trim(),
       humanTag: human.tag.trim(),
-      agents: existingConfig?.agents || [],
+      agents: props.existingConfig?.agents || [],
     };
 
     try {
-      await writeWizardConfig(selectedIds, overrides, mergedExisting);
+      await writeWizardConfig(selectedIds(), overrides, mergedExisting);
       setStep("done");
     } catch (err: any) {
       setError(`Failed to save: ${err.message}`);
     }
-  }, [selectedIds, existingConfig]);
+  };
 
   // Configure step keyboard handling
   useKeyboard((key) => {
@@ -275,58 +272,58 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
       return;
     }
 
-    if (step !== "configure") {
+    if (step() !== "configure") {
       // Detect step: consume all keys, keyboard disabled during loading
-      if (step === "detect") {
+      if (step() === "detect") {
         return;
       }
       // Done step: any key to continue
-      if (step === "done") {
+      if (step() === "done") {
         if (key.name === "enter" || key.name === "return" || key.name === "space") {
-          onComplete();
+          props.onComplete();
         }
         return;
       }
       return;
     }
 
-    const configs = inputRefs.current;
-    const human = humanRef.current;
+    const configs = inputRefsData;
+    const human = humanData;
 
     // Get current field value based on active tab
     let fieldValue: string;
-    if (isYouTab) {
-      fieldValue = focusedField === 0 ? human.name : human.tag;
+    if (isYouTab()) {
+      fieldValue = focusedField() === 0 ? human.name : human.tag;
     } else {
-      const current = configs[agentTabIndex];
+      const current = configs[agentTabIndex()];
       if (!current) return;
-      fieldValue = [current.name, current.tag, current.model][focusedField];
+      fieldValue = [current.name, current.tag, current.model][focusedField()];
     }
-    const cursor = cursorRef.current;
+    const cursor = cursorPos;
 
     const updateField = (value: string, newCursor: number) => {
-      if (isYouTab) {
-        if (focusedField === 0) human.name = value;
+      if (isYouTab()) {
+        if (focusedField() === 0) human.name = value;
         else human.tag = value;
       } else {
-        const current = configs[agentTabIndex];
-        if (focusedField === 0) current.name = value;
-        else if (focusedField === 1) current.tag = value;
+        const current = configs[agentTabIndex()];
+        if (focusedField() === 0) current.name = value;
+        else if (focusedField() === 1) current.tag = value;
         else current.model = value;
       }
-      cursorRef.current = newCursor;
+      cursorPos = newCursor;
       setError("");
-      forceRender((n) => n + 1);
+      setTick((n) => n + 1);
     };
 
     // Tab bar navigation: [ and ]
     if (key.sequence === "[" || key.sequence === "]") {
       const dir = key.sequence === "[" ? -1 : 1;
-      const next = (activeTab + dir + totalTabs) % totalTabs;
+      const next = (activeTab() + dir + totalTabs()) % totalTabs();
       setActiveTab(next);
       // Clamp focused field to max for the new tab
       const newMax = next === 0 ? 1 : 2;
-      const newField = Math.min(focusedField, newMax);
+      const newField = Math.min(focusedField(), newMax);
       setFocusedField(newField);
       // Get field value for new tab
       let newVal: string;
@@ -335,26 +332,26 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
       } else {
         newVal = getFieldValue(configs[next - 1], newField);
       }
-      cursorRef.current = newVal.length;
-      forceRender((n) => n + 1);
+      cursorPos = newVal.length;
+      setTick((n) => n + 1);
       return;
     }
 
     // Tab: cycle fields
     if (key.name === "tab") {
-      const fieldCount = maxFieldIndex + 1;
+      const fieldCount = maxFieldIndex() + 1;
       const nextField = key.shift
-        ? (focusedField - 1 + fieldCount) % fieldCount
-        : (focusedField + 1) % fieldCount;
+        ? (focusedField() - 1 + fieldCount) % fieldCount
+        : (focusedField() + 1) % fieldCount;
       setFocusedField(nextField);
       let newVal: string;
-      if (isYouTab) {
+      if (isYouTab()) {
         newVal = nextField === 0 ? human.name : human.tag;
       } else {
-        newVal = getFieldValue(configs[agentTabIndex], nextField);
+        newVal = getFieldValue(configs[agentTabIndex()], nextField);
       }
-      cursorRef.current = newVal.length;
-      forceRender((n) => n + 1);
+      cursorPos = newVal.length;
+      setTick((n) => n + 1);
       return;
     }
 
@@ -388,26 +385,26 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
     }
 
     if (key.name === "left") {
-      cursorRef.current = Math.max(0, cursor - 1);
-      forceRender((n) => n + 1);
+      cursorPos = Math.max(0, cursor - 1);
+      setTick((n) => n + 1);
       return;
     }
 
     if (key.name === "right") {
-      cursorRef.current = Math.min(fieldValue.length, cursor + 1);
-      forceRender((n) => n + 1);
+      cursorPos = Math.min(fieldValue.length, cursor + 1);
+      setTick((n) => n + 1);
       return;
     }
 
     if (key.name === "home" || (key.ctrl && key.name === "a")) {
-      cursorRef.current = 0;
-      forceRender((n) => n + 1);
+      cursorPos = 0;
+      setTick((n) => n + 1);
       return;
     }
 
     if (key.name === "end" || (key.ctrl && key.name === "e")) {
-      cursorRef.current = fieldValue.length;
-      forceRender((n) => n + 1);
+      cursorPos = fieldValue.length;
+      setTick((n) => n + 1);
       return;
     }
 
@@ -424,7 +421,7 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
 
     // Space: allowed in name and model (fields 0, 2), blocked in tag (field 1)
     if (key.name === "space" || key.sequence === " ") {
-      if (focusedField !== 1) {
+      if (focusedField() !== 1) {
         updateField(fieldValue.slice(0, cursor) + " " + fieldValue.slice(cursor), cursor + 1);
       }
       return;
@@ -436,7 +433,7 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
       // Block quotes and backticks in all fields
       if (ch === "'" || ch === '"' || ch === "`") return;
       // Tags: only alphanumeric, hyphens, underscores
-      if (focusedField === 1 && !TAG_PATTERN.test(ch)) return;
+      if (focusedField() === 1 && !TAG_PATTERN.test(ch)) return;
       updateField(
         fieldValue.slice(0, cursor) + ch + fieldValue.slice(cursor),
         cursor + ch.length
@@ -446,91 +443,121 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
 
   // ── RENDER ──
 
-  const title = isFirstRun ? "Welcome to llm-party" : "Configure Agents";
-  const subtitle = isFirstRun
+  const title = () => props.isFirstRun ? "Welcome to llm-party" : "Configure Agents";
+  const subtitle = () => props.isFirstRun
     ? "Bring your models. We'll bring the party."
     : "Changes will take effect on next session";
-  const subtitleColor = isFirstRun ? COLORS.textDim : COLORS.warning;
+  const subtitleColor = () => props.isFirstRun ? COLORS.textDim : COLORS.warning;
 
   function Subtitle() {
-    return <text alignSelf="center" fg={subtitleColor}>{subtitle}</text>;
+    return <text alignSelf="center" fg={subtitleColor()}>{subtitle()}</text>;
   }
 
   const discoColor = useDiscoColor();
 
-  // Step: detect
-  if (step === "detect") {
+  function renderField(label: string, value: string, isFocused: boolean) {
+    // Read tick to ensure reactivity on mutable updates
+    tick();
+    const cursor = cursorPos;
+    const labelColor = isFocused ? COLORS.primary : COLORS.textDim;
+    const indicator = isFocused ? "▸" : " ";
+    const indicatorColor = COLORS.primary;
+    const valueColor = isFocused ? COLORS.textPrimary : COLORS.textSecondary;
+
+    if (!isFocused) {
+      return (
+        <text>
+          <span style={{ fg: COLORS.borderStrong }}>{indicator} </span>
+          <span style={{ fg: labelColor }}>{label}: </span>
+          <span style={{ fg: valueColor }}>{value}</span>
+        </text>
+      );
+    }
+
+    const before = value.slice(0, cursor);
+    const cursorChar = cursor < value.length ? value[cursor] : " ";
+    const after = cursor < value.length ? value.slice(cursor + 1) : "";
+
     return (
-      <box flexDirection="column" width="100%" height="100%" justifyContent="center" alignItems="center">
-        <box border borderStyle="double" borderColor={discoColor} paddingX={4} paddingY={1} backgroundColor={COLORS.bgPanel}>
-          <box flexDirection="column" alignItems="center">
-            <SweepBar title="llm-party" />
-            <text fg={COLORS.success} marginTop={1}>
-              {spinner} Scanning for installed CLIs...
-            </text>
-          </box>
-        </box>
-      </box>
+      <text>
+        <span style={{ fg: indicatorColor }}>{indicator} </span>
+        <span style={{ fg: labelColor }}>{label}: </span>
+        {before}
+        <span style={{ bg: COLORS.textPrimary, fg: "#000000" }}>{cursorChar}</span>
+        {after}
+      </text>
     );
   }
+
+  // Step: detect
+  const DetectStep = () => (
+    <box flexDirection="column" width="100%" height="100%" justifyContent="center" alignItems="center">
+      <box border borderStyle="double" borderColor={discoColor()} paddingX={4} paddingY={1} backgroundColor={COLORS.bgPanel}>
+        <box flexDirection="column" alignItems="center">
+          <SweepBar title="llm-party" />
+          <text fg={COLORS.success} marginTop={1}>
+            {spinner()} Scanning for installed CLIs...
+          </text>
+        </box>
+      </box>
+    </box>
+  );
 
   // Step: providers
-  if (step === "providers") {
-    return (
-      <box flexDirection="column" width="100%" height="100%" justifyContent="center" alignItems="center">
-        <box
-          border
-          borderStyle="double"
-          borderColor={discoColor}
-          paddingX={3}
-          paddingY={1}
-          backgroundColor={COLORS.bgPanel}
-          minWidth={50}
-        >
-          <box flexDirection="column">
-            <box alignSelf="center">
-              <SweepBar title={title} />
-            </box>
-            <Subtitle />
+  const ProvidersStep = () => (
+    <box flexDirection="column" width="100%" height="100%" justifyContent="center" alignItems="center">
+      <box
+        border
+        borderStyle="double"
+        borderColor={discoColor()}
+        paddingX={3}
+        paddingY={1}
+        backgroundColor={COLORS.bgPanel}
+        minWidth={50}
+      >
+        <box flexDirection="column">
+          <box alignSelf="center">
+            <SweepBar title={title()} />
+          </box>
+          <Subtitle />
 
-            <text alignSelf="center" fg={COLORS.textSubtle} marginTop={1}>{"═".repeat(44)}</text>
+          <text alignSelf="center" fg={COLORS.textSubtle} marginTop={1}>{"═".repeat(44)}</text>
 
-            <text marginTop={1}>
-              <span fg={COLORS.textSecondary}>Select your agents  </span>
-              <span fg={COLORS.success}>Space</span>
-              <span fg={COLORS.textFaint}>{" toggle  "}</span>
-              <span fg={COLORS.success}>Enter</span>
-              <span fg={COLORS.textFaint}>{" confirm"}</span>
-              {!isFirstRun && (
-                <>
-                  <span fg={COLORS.textFaint}>{"  "}</span>
-                  <span fg={COLORS.error}>Esc</span>
-                  <span fg={COLORS.textFaint}>{" cancel"}</span>
-                </>
-              )}
-            </text>
+          <text marginTop={1}>
+            <span style={{ fg: COLORS.textSecondary }}>Select your agents  </span>
+            <span style={{ fg: COLORS.success }}>Space</span>
+            <span style={{ fg: COLORS.textFaint }}>{" toggle  "}</span>
+            <span style={{ fg: COLORS.success }}>Enter</span>
+            <span style={{ fg: COLORS.textFaint }}>{" confirm"}</span>
+            <Show when={!props.isFirstRun}>
+              <span style={{ fg: COLORS.textFaint }}>{"  "}</span>
+              <span style={{ fg: COLORS.error }}>Esc</span>
+              <span style={{ fg: COLORS.textFaint }}>{" cancel"}</span>
+            </Show>
+          </text>
 
-            <box marginTop={1}>
-              <MultiSelect
-                items={multiSelectItems}
-                onConfirm={handleProviderConfirm}
-                onCancel={isFirstRun ? undefined : handleProviderCancel}
-                initialSelected={initialSelected}
-              />
-            </box>
+          <box marginTop={1}>
+            <MultiSelect
+              items={multiSelectItems()}
+              onConfirm={handleProviderConfirm}
+              onCancel={props.isFirstRun ? undefined : handleProviderCancel}
+              initialSelected={initialSelected()}
+            />
           </box>
         </box>
       </box>
-    );
-  }
+    </box>
+  );
 
   // Step: configure
-  if (step === "configure") {
-    const configs = inputRefs.current;
-    const human = humanRef.current;
+  const ConfigureStep = () => {
+    // Read tick for reactivity
+    tick();
+    const configs = inputRefsData;
+    const human = humanData;
 
     // Build tab labels: "You" + agent names
-    const tabLabels = ["You", ...selectedIds.map((id) => {
+    const tabLabels = ["You", ...selectedIds().map((id) => {
       const def = PROVIDERS.find((p) => p.id === id);
       return def?.displayName || id;
     })];
@@ -540,7 +567,7 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
         <box
           border
           borderStyle="double"
-          borderColor={discoColor}
+          borderColor={discoColor()}
           paddingX={3}
           paddingY={1}
           backgroundColor={COLORS.bgPanel}
@@ -548,25 +575,26 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
         >
           <box flexDirection="column">
             <box alignSelf="center">
-              <SweepBar title={title} />
+              <SweepBar title={title()} />
             </box>
 
-            {!isFirstRun && <Subtitle />}
+            <Show when={!props.isFirstRun}>
+              <Subtitle />
+            </Show>
 
             {/* Tab bar with visual brackets */}
             <box flexDirection="row" marginTop={1} alignSelf="center">
-              {tabLabels.map((label, i) => {
-                const isActive = i === activeTab;
+              <For each={tabLabels}>{(label, i) => {
+                const isActive = () => i() === activeTab();
                 return (
                   <text
-                    key={label + i}
-                    fg={isActive ? COLORS.success : COLORS.textSubtle}
-                    bg={isActive ? COLORS.bgActiveTab : undefined}
+                    fg={isActive() ? COLORS.success : COLORS.textSubtle}
+                    bg={isActive() ? COLORS.bgActiveTab : undefined}
                   >
                     <strong>{" "}{label}{" "}</strong>
                   </text>
                 );
-              })}
+              }}</For>
             </box>
 
             <text alignSelf="center" fg={COLORS.borderStrong}>{"━".repeat(48)}</text>
@@ -575,69 +603,67 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
             <box
               border
               borderStyle="rounded"
-              borderColor={isYouTab ? COLORS.agent : COLORS.success}
+              borderColor={isYouTab() ? COLORS.agent : COLORS.success}
               paddingX={2}
               paddingY={1}
               marginTop={1}
               backgroundColor={COLORS.bgContent}
             >
               <box flexDirection="column">
-                {isYouTab ? (
-                  <>
-                    <text fg={COLORS.agent} marginBottom={1}><strong>Your Identity</strong></text>
-                    {renderField("Name", human.name, focusedField === 0)}
-                    {renderField("Tag ", human.tag, focusedField === 1)}
-                  </>
-                ) : (
+                <Show when={isYouTab()} fallback={
                   <>
                     <text fg={COLORS.success} marginBottom={1}>
-                      <strong>{tabLabels[activeTab]} Configuration</strong>
+                      <strong>{tabLabels[activeTab()]} Configuration</strong>
                     </text>
-                    {renderField("Name ", configs[agentTabIndex].name, focusedField === 0)}
-                    {renderField("Tag  ", configs[agentTabIndex].tag, focusedField === 1)}
-                    {renderField("Model", configs[agentTabIndex].model, focusedField === 2)}
+                    {renderField("Name ", configs[agentTabIndex()].name, focusedField() === 0)}
+                    {renderField("Tag  ", configs[agentTabIndex()].tag, focusedField() === 1)}
+                    {renderField("Model", configs[agentTabIndex()].model, focusedField() === 2)}
                   </>
-                )}
+                }>
+                  <text fg={COLORS.agent} marginBottom={1}><strong>Your Identity</strong></text>
+                  {renderField("Name", human.name, focusedField() === 0)}
+                  {renderField("Tag ", human.tag, focusedField() === 1)}
+                </Show>
               </box>
             </box>
 
             {/* Shortcut bar */}
             <box flexDirection="row" marginTop={1} justifyContent="space-between">
               <text>
-                <span fg={COLORS.textFaint}>{"◂ "}</span>
-                <span fg={COLORS.success}>{"["}</span>
-                <span fg={COLORS.textFaint}>{" prev  "}</span>
-                <span fg={COLORS.success}>{"]"}</span>
-                <span fg={COLORS.textFaint}>{" next "}</span>
-                <span fg={COLORS.textFaint}>{"▸  "}</span>
-                <span fg={COLORS.success}>Tab</span>
-                <span fg={COLORS.textFaint}>{" fields  "}</span>
-                <span fg={COLORS.success}>Enter</span>
-                <span fg={COLORS.textFaint}>{" save & close"}</span>
-                <span fg={COLORS.textFaint}>{"  "}</span>
-                <span fg={COLORS.warning}>Esc</span>
-                <span fg={COLORS.textFaint}>{" back"}</span>
+                <span style={{ fg: COLORS.textFaint }}>{"◂ "}</span>
+                <span style={{ fg: COLORS.success }}>{"["}</span>
+                <span style={{ fg: COLORS.textFaint }}>{" prev  "}</span>
+                <span style={{ fg: COLORS.success }}>{"]"}</span>
+                <span style={{ fg: COLORS.textFaint }}>{" next "}</span>
+                <span style={{ fg: COLORS.textFaint }}>{"▸  "}</span>
+                <span style={{ fg: COLORS.success }}>Tab</span>
+                <span style={{ fg: COLORS.textFaint }}>{" fields  "}</span>
+                <span style={{ fg: COLORS.success }}>Enter</span>
+                <span style={{ fg: COLORS.textFaint }}>{" save & close"}</span>
+                <span style={{ fg: COLORS.textFaint }}>{"  "}</span>
+                <span style={{ fg: COLORS.warning }}>Esc</span>
+                <span style={{ fg: COLORS.textFaint }}>{" back"}</span>
               </text>
             </box>
 
-            {error && (
+            <Show when={error()}>
               <box border borderStyle="rounded" borderColor={COLORS.error} paddingX={1} marginTop={1} backgroundColor={COLORS.bgError}>
-                <text fg={COLORS.error}>{error}</text>
+                <text fg={COLORS.error}>{error()}</text>
               </box>
-            )}
+            </Show>
           </box>
         </box>
       </box>
     );
-  }
+  };
 
   // Step: done
-  return (
+  const DoneStep = () => (
     <box flexDirection="column" width="100%" height="100%" justifyContent="center" alignItems="center">
       <box
         border
         borderStyle="double"
-        borderColor={discoColor}
+        borderColor={discoColor()}
         paddingX={4}
         paddingY={2}
         backgroundColor={COLORS.bgPanel}
@@ -656,44 +682,29 @@ export function ConfigWizard({ isFirstRun, onComplete, onCancel, existingConfig 
           </text>
           <text fg={COLORS.textSubtle} marginTop={1}>{"─".repeat(36)}</text>
           <text fg={COLORS.primary} marginTop={1}>
-            Press <span fg={COLORS.success}><strong>Enter</strong></span> to continue
+            Press <span style={{ fg: COLORS.success }}><strong>Enter</strong></span> to continue
           </text>
         </box>
       </box>
     </box>
   );
 
-  function renderField(label: string, value: string, isFocused: boolean) {
-    const cursor = cursorRef.current;
-    const labelColor = isFocused ? COLORS.primary : COLORS.textDim;
-    const indicator = isFocused ? "▸" : " ";
-    const indicatorColor = COLORS.primary;
-    const valueColor = isFocused ? COLORS.textPrimary : COLORS.textSecondary;
-
-    if (!isFocused) {
-      return (
-        <text>
-          <span fg={COLORS.borderStrong}>{indicator} </span>
-          <span fg={labelColor}>{label}: </span>
-          <span fg={valueColor}>{value}</span>
-        </text>
-      );
-    }
-
-    const before = value.slice(0, cursor);
-    const cursorChar = cursor < value.length ? value[cursor] : " ";
-    const after = cursor < value.length ? value.slice(cursor + 1) : "";
-
-    return (
-      <text>
-        <span fg={indicatorColor}>{indicator} </span>
-        <span fg={labelColor}>{label}: </span>
-        {before}
-        <span bg={COLORS.textPrimary} fg="#000000">{cursorChar}</span>
-        {after}
-      </text>
-    );
-  }
+  return (
+    <>
+      <Show when={step() === "detect"}>
+        <DetectStep />
+      </Show>
+      <Show when={step() === "providers"}>
+        <ProvidersStep />
+      </Show>
+      <Show when={step() === "configure"}>
+        <ConfigureStep />
+      </Show>
+      <Show when={step() === "done"}>
+        <DoneStep />
+      </Show>
+    </>
+  );
 }
 
 function getFieldValue(config: AgentConfig, field: number): string {
