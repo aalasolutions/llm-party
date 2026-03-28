@@ -11,6 +11,7 @@ export class CopilotAdapter implements AgentAdapter {
   private session?: CopilotSession;
   private systemPrompt = "";
   private cliPath?: string;
+  private timeout = 600000;
 
   constructor(name: string, model: string) {
     this.name = name;
@@ -20,6 +21,9 @@ export class CopilotAdapter implements AgentAdapter {
   async init(config: PersonaConfig): Promise<void> {
     this.systemPrompt = config.resolvedPrompt ?? "";
     this.cliPath = config.executablePath ?? process.env.COPILOT_CLI_EXECUTABLE;
+    if (config.timeout && config.timeout > 0) {
+      this.timeout = config.timeout * 1000;
+    }
     await this.createSession();
   }
 
@@ -81,7 +85,7 @@ export class CopilotAdapter implements AgentAdapter {
       return "[Copilot session not initialized]";
     }
 
-    const response = await this.session.sendAndWait({ prompt: transcript });
+    const response = await this.session.sendAndWait({ prompt: transcript }, this.timeout);
 
     if (response && response.data && typeof response.data.content === "string" && response.data.content.length > 0) {
       return response.data.content;
