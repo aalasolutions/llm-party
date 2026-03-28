@@ -53,30 +53,35 @@ export abstract class ClaudeBaseAdapter implements AgentAdapter {
       ...executableOpt
     };
 
-    for await (const message of query({ prompt: transcript, options })) {
-      if (signal?.aborted) {
-        return `[Aborted] ${this.name} was cancelled`;
-      }
+    try {
+      for await (const message of query({ prompt: transcript, options })) {
+        if (signal?.aborted) {
+          return `[Aborted] ${this.name} was cancelled`;
+        }
 
-      if (
-        message &&
-        typeof message === "object" &&
-        "type" in message &&
-        "subtype" in message &&
-        "session_id" in message &&
-        message.type === "system" &&
-        message.subtype === "init" &&
-        typeof message.session_id === "string"
-      ) {
-        this.sessionId = message.session_id;
-      }
+        if (
+          message &&
+          typeof message === "object" &&
+          "type" in message &&
+          "subtype" in message &&
+          "session_id" in message &&
+          message.type === "system" &&
+          message.subtype === "init" &&
+          typeof message.session_id === "string"
+        ) {
+          this.sessionId = message.session_id;
+        }
 
-      if (message && typeof message === "object" && "result" in message) {
-        const result = message.result;
-        return typeof result === "string" && result.length > 0
-          ? result
-          : `[No text response from ${this.name}]`;
+        if (message && typeof message === "object" && "result" in message) {
+          const result = message.result;
+          return typeof result === "string" && result.length > 0
+            ? result
+            : `[No text response from ${this.name}]`;
+        }
       }
+    } catch (err) {
+      console.log(`[${this.name}] SDK error:`, err);
+      throw err;
     }
 
     return `[No text response from ${this.name}]`;
