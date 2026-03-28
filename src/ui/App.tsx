@@ -9,6 +9,7 @@ import { StatusBar } from "./StatusBar.js";
 import { InputLine } from "./InputLine.js";
 import { ConfigWizard } from "./ConfigWizard.js";
 import { AgentsPanel } from "./AgentsPanel.js";
+import { InfoPanel } from "./InfoPanel.js";
 import { COLORS } from "./theme.js";
 import type { AppConfig } from "../types.js";
 
@@ -43,6 +44,7 @@ export function App({ orchestrator, maxAutoHops, renderer, config }: AppProps) {
   const scrollRef = useRef<ScrollBoxRenderable>(null);
   const [screen, setScreen] = useState<"chat" | "config">("chat");
   const [showAgents, setShowAgents] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
 
 const gracefulExit = useCallback(() => {
     renderer.destroy();
@@ -130,6 +132,11 @@ if (line === "/session") {
       return;
     }
 
+    if (line === "/info") {
+      setShowInfo(true);
+      return;
+    }
+
     // /flood - generate messages for scroll testing
     if (line.startsWith("/flood")) {
       const args = line.split(/\s+/);
@@ -188,7 +195,6 @@ if (line === "/session") {
       <StatusBar
         agents={agents}
         agentStates={agentStates}
-        sessionId={orchestrator.getSessionId()}
         stickyTarget={stickyTarget}
       />
 
@@ -196,7 +202,7 @@ if (line === "/session") {
       <InputLine
         humanName={humanName}
         onSubmit={handleSubmit}
-        disabled={dispatching || showAgents}
+        disabled={dispatching || showAgents || showInfo}
         disabledMessage={showAgents ? "" : undefined}
       />
 
@@ -209,6 +215,12 @@ if (line === "/session") {
             setShowAgents(false);
             setScreen("config");
           }}
+        />
+      )}
+      {showInfo && (
+        <InfoPanel
+          sessionId={orchestrator.getSessionId()}
+          onClose={() => setShowInfo(false)}
         />
       )}
     </box>
