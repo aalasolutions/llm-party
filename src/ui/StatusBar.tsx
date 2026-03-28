@@ -6,7 +6,6 @@ import { COLORS } from "./theme.js";
 interface Props {
   agents: Array<{ name: string; tag: string; provider: string }>;
   agentStates: Map<string, AgentState>;
-  sessionId: string;
   stickyTarget: string[] | undefined;
 }
 // Color cycle: pulses through cyan/blue shades
@@ -29,21 +28,23 @@ function useThinkingAnimation(active: boolean): { spinner: string; color: string
   };
 }
 
-export function StatusBar({ agents, agentStates, sessionId, stickyTarget }: Props) {
-  const target = stickyTarget
-    ? stickyTarget.map((name) => {
-        const agent = agents.find((a) => a.name === name);
-        return agent ? `${agent.tag} - ${agent.provider}` : name;
-      }).join(", ")
-    : "all";
+export function StatusBar({ agents, agentStates, stickyTarget }: Props) {
+  const targetNames = stickyTarget ?? agents.map((a) => a.name);
+  const isTargeted = (name: string) => targetNames.includes(name);
 
   return (
     <box paddingX={1} flexShrink={0}>
       <box flexDirection="row" justifyContent="space-between" width="100%">
-        <box flexDirection="row" gap={2}>
-          <text fg={COLORS.textMuted}>{target}</text>
-          <text fg={COLORS.textSubtle}>|</text>
-          <text fg={COLORS.textDim}>{sessionId.slice(0, 20)}</text>
+        <box flexDirection="row" gap={1}>
+          {agents.map((a, i) => (
+            <text key={a.name}>
+              <span fg={isTargeted(a.name) ? COLORS.success : COLORS.textDim}>
+                @{a.tag}({a.provider})
+              </span>
+              {i < agents.length - 1 ? <span fg={COLORS.textDim}> </span> : null}
+            </text>
+          ))}
+          <text fg={COLORS.textDim}>| /info</text>
         </box>
         <box flexDirection="row" gap={2}>
           {agents.map((a) => (
