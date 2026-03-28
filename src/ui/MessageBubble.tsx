@@ -1,4 +1,3 @@
-import React from "react";
 import type { DisplayMessage } from "../types.js";
 import { formatAgentLabel } from "../utils.js";
 import { COLORS } from "./theme.js";
@@ -8,31 +7,31 @@ interface Props {
   humanName: string;
 }
 
-export function MessageBubble({ message, humanName }: Props) {
-  if (message.type === "system") {
+export function MessageBubble(props: Props) {
+  if (props.message.type === "system") {
     return (
-      <text fg={COLORS.textDim} selectable>{message.text}</text>
+      <text fg={COLORS.textDim} selectable>{props.message.text}</text>
     );
   }
 
-  if (message.type === "user") {
+  if (props.message.type === "user") {
     return (
       <text selectable>
-        <span fg={COLORS.human}><strong>[{humanName}]</strong></span> {message.text}
+        <span style={{ fg: COLORS.human }}><strong>[{props.humanName}]</strong></span> {props.message.text}
       </text>
     );
   }
 
-  const label = message.tag
-    ? formatAgentLabel(message.from, message.tag)
-    : message.from;
+  const label = props.message.tag
+    ? formatAgentLabel(props.message.from, props.message.tag)
+    : props.message.from;
 
   return (
     <box flexDirection="column" marginBottom={1}>
       <text selectable>
-        <span fg={COLORS.agent}><strong>[{label}]</strong></span>
+        <span style={{ fg: COLORS.agent }}><strong>[{label}]</strong></span>
       </text>
-      <text selectable>{message.text}</text>
+      <text selectable>{props.message.text}</text>
     </box>
   );
 }

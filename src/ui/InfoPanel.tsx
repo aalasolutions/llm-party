@@ -1,4 +1,5 @@
-import { useKeyboard } from "@opentui/react";
+import { For } from "solid-js";
+import { useKeyboard } from "@opentui/solid";
 import { COLORS } from "./theme.js";
 
 interface InfoPanelProps {
@@ -6,10 +7,10 @@ interface InfoPanelProps {
   onClose: () => void;
 }
 
-export function InfoPanel({ sessionId, onClose }: InfoPanelProps) {
+export function InfoPanel(props: InfoPanelProps) {
   useKeyboard((key) => {
     if (key.name === "escape") {
-      onClose();
+      props.onClose();
       return;
     }
   });
@@ -63,32 +64,32 @@ export function InfoPanel({ sessionId, onClose }: InfoPanelProps) {
           <text alignSelf="center" fg={COLORS.primary}><strong>llm-party</strong></text>
 
           <text fg={COLORS.textMuted} marginTop={1}>
-            <span fg={COLORS.textDim}>Session  </span>
-            <span fg={COLORS.textPrimary}>{sessionId.slice(0, 30)}</span>
+            <span style={{ fg: COLORS.textDim }}>Session  </span>
+            <span style={{ fg: COLORS.textPrimary }}>{props.sessionId.slice(0, 30)}</span>
           </text>
 
           <text fg={COLORS.primary} marginTop={1}><strong>Commands</strong></text>
           <text fg={COLORS.borderStrong}>{"─".repeat(totalW)}</text>
-          {commands.map(([cmd, desc]) => (
-            <text key={cmd}>
-              <span fg={COLORS.success}>{pad(cmd!, cmdW)}</span>
-              <span fg={COLORS.textMuted}>{desc}</span>
+          <For each={commands}>{(entry) => (
+            <text>
+              <span style={{ fg: COLORS.success }}>{pad(entry[0]!, cmdW)}</span>
+              <span style={{ fg: COLORS.textMuted }}>{entry[1]}</span>
             </text>
-          ))}
+          )}</For>
 
           <text fg={COLORS.primary} marginTop={1}><strong>Shortcuts</strong></text>
           <text fg={COLORS.borderStrong}>{"─".repeat(totalW)}</text>
-          {shortcuts.map(([key, desc]) => (
-            <text key={key}>
-              <span fg={COLORS.success}>{pad(key!, cmdW)}</span>
-              <span fg={COLORS.textMuted}>{desc}</span>
+          <For each={shortcuts}>{(entry) => (
+            <text>
+              <span style={{ fg: COLORS.success }}>{pad(entry[0]!, cmdW)}</span>
+              <span style={{ fg: COLORS.textMuted }}>{entry[1]}</span>
             </text>
-          ))}
+          )}</For>
 
           <text fg={COLORS.borderStrong} marginTop={1}>{"─".repeat(totalW)}</text>
           <text marginTop={1} alignSelf="center">
-            <span fg={COLORS.error}>Esc</span>
-            <span fg={COLORS.textFaint}>{" close"}</span>
+            <span style={{ fg: COLORS.error }}>Esc</span>
+            <span style={{ fg: COLORS.textFaint }}>{" close"}</span>
           </text>
         </box>
       </box>

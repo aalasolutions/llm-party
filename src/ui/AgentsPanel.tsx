@@ -1,4 +1,5 @@
-import { useKeyboard } from "@opentui/react";
+import { For } from "solid-js";
+import { useKeyboard } from "@opentui/solid";
 import { COLORS } from "./theme.js";
 
 interface AgentInfo {
@@ -14,19 +15,19 @@ interface AgentsPanelProps {
   onConfig: () => void;
 }
 
-export function AgentsPanel({ agents, onClose, onConfig }: AgentsPanelProps) {
+export function AgentsPanel(props: AgentsPanelProps) {
   useKeyboard((key) => {
     if (key.name === "escape") {
-      onClose();
+      props.onClose();
       return;
     }
   });
 
-  const nameW = Math.max(4, ...agents.map((a) => a.name.length)) + 2;
-  const tagW = Math.max(3, ...agents.map((a) => a.tag.length + 1)) + 2;
-  const provW = Math.max(8, ...agents.map((a) => a.provider.length)) + 2;
-  const modelW = Math.max(5, ...agents.map((a) => a.model.length)) + 2;
-  const totalW = nameW + tagW + provW + modelW;
+  const nameW = () => Math.max(4, ...props.agents.map((a) => a.name.length)) + 2;
+  const tagW = () => Math.max(3, ...props.agents.map((a) => a.tag.length + 1)) + 2;
+  const provW = () => Math.max(8, ...props.agents.map((a) => a.provider.length)) + 2;
+  const modelW = () => Math.max(5, ...props.agents.map((a) => a.model.length)) + 2;
+  const totalW = () => nameW() + tagW() + provW() + modelW();
 
   const pad = (str: string, width: number) => str + " ".repeat(Math.max(0, width - str.length));
 
@@ -51,29 +52,29 @@ export function AgentsPanel({ agents, onClose, onConfig }: AgentsPanelProps) {
           <text alignSelf="center" fg={COLORS.primary}><strong>Active Agents</strong></text>
 
           <text fg={COLORS.textSubtle} marginTop={1}>
-            <span fg={COLORS.textMuted}>{pad("Name", nameW)}</span>
-            <span fg={COLORS.textMuted}>{pad("Tag", tagW)}</span>
-            <span fg={COLORS.textMuted}>{pad("Provider", provW)}</span>
-            <span fg={COLORS.textMuted}>{pad("Model", modelW)}</span>
+            <span style={{ fg: COLORS.textMuted }}>{pad("Name", nameW())}</span>
+            <span style={{ fg: COLORS.textMuted }}>{pad("Tag", tagW())}</span>
+            <span style={{ fg: COLORS.textMuted }}>{pad("Provider", provW())}</span>
+            <span style={{ fg: COLORS.textMuted }}>{pad("Model", modelW())}</span>
           </text>
-          <text fg={COLORS.borderStrong}>{"─".repeat(totalW)}</text>
+          <text fg={COLORS.borderStrong}>{"─".repeat(totalW())}</text>
 
-          {agents.map((a) => (
-            <text key={a.name}>
-              <span fg={COLORS.textPrimary}>{pad(a.name, nameW)}</span>
-              <span fg={COLORS.success}>{pad("@" + a.tag, tagW)}</span>
-              <span fg={COLORS.textMuted}>{pad(a.provider, provW)}</span>
-              <span fg={COLORS.textDim}>{pad(a.model, modelW)}</span>
+          <For each={props.agents}>{(a) => (
+            <text>
+              <span style={{ fg: COLORS.textPrimary }}>{pad(a.name, nameW())}</span>
+              <span style={{ fg: COLORS.success }}>{pad("@" + a.tag, tagW())}</span>
+              <span style={{ fg: COLORS.textMuted }}>{pad(a.provider, provW())}</span>
+              <span style={{ fg: COLORS.textDim }}>{pad(a.model, modelW())}</span>
             </text>
-          ))}
+          )}</For>
 
-          <text fg={COLORS.borderStrong} marginTop={1}>{"─".repeat(totalW)}</text>
+          <text fg={COLORS.borderStrong} marginTop={1}>{"─".repeat(totalW())}</text>
 
           <text marginTop={1} alignSelf="center">
-            <span fg={COLORS.error}>Esc</span>
-            <span fg={COLORS.textFaint}>{" close   "}</span>
-            <span fg={COLORS.success}>/config</span>
-            <span fg={COLORS.textFaint}>{" edit agents"}</span>
+            <span style={{ fg: COLORS.error }}>Esc</span>
+            <span style={{ fg: COLORS.textFaint }}>{" close   "}</span>
+            <span style={{ fg: COLORS.success }}>/config</span>
+            <span style={{ fg: COLORS.textFaint }}>{" edit agents"}</span>
           </text>
         </box>
       </box>
