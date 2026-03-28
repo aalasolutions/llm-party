@@ -20,7 +20,7 @@ This is the shared brain between all agents. Read this file FIRST on every boot.
 
 ## Entries
 
-<!-- Agents: add new entries below. One line per entry. Format: - [Title](filename.md) — one-line summary -->
+<!-- Agents: add new entries below. One line per entry. Format: - [[filename]] - one-line summary -->
 `;
 
 function validateConfig(data: unknown): void {
