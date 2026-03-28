@@ -256,7 +256,7 @@ Override with `LLM_PARTY_CONFIG` env var to point to a different file.
 | Field              | Required | Default                  | Description                                                                                         |
 | ------------------ | -------- | ------------------------ | --------------------------------------------------------------------------------------------------- |
 | `name`           | Yes      |                          | Display name shown in responses as `[AGENT NAME]`. Must be unique.                                |
-| `tag`            | No       | derived from `name`    | Routing tag for `@tag` targeting                                                                  |
+| `tag`            | Yes      |                        | Routing tag for `@tag` targeting. Letters, numbers, hyphens, underscores only. No spaces.         |
 | `provider`       | Yes      |                          | SDK adapter:`claude`, `codex`, `copilot`, or `glm`                                          |
 | `model`          | Yes      |                          | Model ID passed to the provider. Examples:`opus`, `sonnet`, `gpt-5.2`, `gpt-4.1`, `glm-5` |
 | `prompts`        | No       | none                     | Array of extra prompt file paths, concatenated after `base.md`. Relative to project root          |
