@@ -57,6 +57,14 @@ function validateConfig(data: unknown): void {
     }
     seenNames.add(normalizedName);
 
+    if (typeof agent.tag !== "string" || agent.tag.trim() === "") {
+      throw new Error(`Agent '${agent.name}' must have a non-empty 'tag' string. Tags are used for @tag routing and cannot contain spaces.`);
+    }
+
+    if (!/^[a-zA-Z0-9_-]+$/.test(agent.tag.trim())) {
+      throw new Error(`Agent '${agent.name}' tag '${agent.tag}' contains invalid characters. Use only letters, numbers, hyphens, and underscores.`);
+    }
+
     if (typeof agent.model !== "string" || agent.model.trim() === "") {
       throw new Error(`Agent '${agent.name}' must have a non-empty 'model' string`);
     }

@@ -9,7 +9,7 @@ export interface ConversationMessage {
 
 export interface PersonaConfig {
   name: string;
-  tag?: string;
+  tag: string;
   provider: "claude" | "copilot" | "codex" | "glm";
   model: string;
   prompts?: string[];
