@@ -1,6 +1,6 @@
-import React, { useCallback, useRef, useState } from "react";
-import { useKeyboard } from "@opentui/react";
-import type { ScrollBoxRenderable, CliRenderer } from "@opentui/core";
+import { createSignal, Show } from "solid-js";
+import { useKeyboard, useRenderer } from "@opentui/solid";
+import type { ScrollBoxRenderable } from "@opentui/core";
 import { spawn } from "node:child_process";
 import { Orchestrator } from "../orchestrator.js";
 import { useOrchestrator, getChangedFiles } from "./useOrchestrator.js";
@@ -32,25 +32,34 @@ function copySelection(renderer: CliRenderer): boolean {
 interface AppProps {
   orchestrator: Orchestrator;
   maxAutoHops: number;
-  renderer: CliRenderer;
   config: AppConfig;
 }
 
-export function App({ orchestrator, maxAutoHops, renderer, config }: AppProps) {
+export function App(props: AppProps) {
+  const renderer = useRenderer();
   const { messages, agentStates, stickyTarget, dispatching, dispatch, addSystemMessage, clearMessages } =
-    useOrchestrator(orchestrator, maxAutoHops);
-  const humanName = orchestrator.getHumanName();
-  const agents = orchestrator.listAgents();
-  const scrollRef = useRef<ScrollBoxRenderable>(null);
-  const [screen, setScreen] = useState<"chat" | "config">("chat");
-  const [showAgents, setShowAgents] = useState(false);
-  const [showInfo, setShowInfo] = useState(false);
+    useOrchestrator(props.orchestrator, props.maxAutoHops);
+  const humanName = props.orchestrator.getHumanName();
+  const agents = props.orchestrator.listAgents();
+  let scrollRef: ScrollBoxRenderable | null = null;
+  const [screen, setScreen] = createSignal<"chat" | "config">("chat");
+  const [showAgents, setShowAgents] = createSignal(false);
+  const [showInfo, setShowInfo] = createSignal(false);
 
-const gracefulExit = useCallback(() => {
+  // Signal handlers for clean exit
+  process.on("SIGINT", () => renderer.destroy());
+  process.on("SIGTERM", () => renderer.destroy());
+  process.on("SIGHUP", () => renderer.destroy());
+  process.on("SIGTSTP", () => {
+    process.once("SIGCONT", () => renderer.resume());
+    renderer.suspend();
+  });
+
+  const gracefulExit = () => {
     renderer.destroy();
-    const adapters = orchestrator.getAdapters();
+    const adapters = props.orchestrator.getAdapters();
     Promise.allSettled(adapters.map((a) => a.destroy()));
-  }, [orchestrator, renderer]);
+  };
 
   useKeyboard((key) => {
     // Ctrl+P: toggle agents panel
@@ -59,7 +68,7 @@ const gracefulExit = useCallback(() => {
       return;
     }
 
-    if (showAgents) return;
+    if (showAgents()) return;
 
     // Ctrl+C: copy selection if any, otherwise exit
     if (key.ctrl && key.name === "c") {
@@ -77,16 +86,16 @@ const gracefulExit = useCallback(() => {
       return;
     }
     if (key.name === "pageup") {
-      scrollRef.current?.scrollBy(-10);
+      scrollRef?.scrollBy(-10);
       return;
     }
     if (key.name === "pagedown") {
-      scrollRef.current?.scrollBy(10);
+      scrollRef?.scrollBy(10);
       return;
     }
   });
 
-  const handleSubmit = useCallback(async (line: string) => {
+  const handleSubmit = async (line: string) => {
     if (line === "/exit") {
       gracefulExit();
       return;
@@ -97,9 +106,9 @@ const gracefulExit = useCallback(() => {
       return;
     }
 
-if (line === "/session") {
+    if (line === "/session") {
       addSystemMessage(
-        `Session: ${orchestrator.getSessionId()}\nTranscript: ${orchestrator.getTranscriptPath()}`
+        `Session: ${props.orchestrator.getSessionId()}\nTranscript: ${props.orchestrator.getTranscriptPath()}`
       );
       return;
     }
@@ -107,7 +116,7 @@ if (line === "/session") {
     if (line.startsWith("/save ")) {
       const filePath = line.replace("/save ", "").trim();
       if (!filePath) { addSystemMessage("Usage: /save <path>"); return; }
-      await orchestrator.saveHistory(filePath);
+      await props.orchestrator.saveHistory(filePath);
       addSystemMessage(`Saved history to ${filePath}`);
       return;
     }
@@ -153,29 +162,29 @@ if (line === "/session") {
     }
 
     await dispatch(line);
-  }, [orchestrator, dispatch, addSystemMessage, clearMessages, gracefulExit]);
+  };
 
   const tagsLine = agents.map((a) => `@${a.tag}`).join(", ");
 
-  if (screen === "config") {
-    return (
-      <ConfigWizard
-        isFirstRun={false}
-        existingConfig={config}
-        onComplete={() => {
-          addSystemMessage("Config saved. Restart llm-party to apply changes.");
-          setScreen("chat");
-        }}
-        onCancel={() => setScreen("chat")}
-      />
-    );
-  }
-
   return (
+    <Show
+      when={screen() !== "config"}
+      fallback={
+        <ConfigWizard
+          isFirstRun={false}
+          existingConfig={props.config}
+          onComplete={() => {
+            addSystemMessage("Config saved. Restart llm-party to apply changes.");
+            setScreen("chat");
+          }}
+          onCancel={() => setScreen("chat")}
+        />
+      }
+    >
     <box flexDirection="column" width="100%" height="100%" onMouseUp={() => copySelection(renderer)}>
       {/* Chat area: flexBasis=0 prevents content from pushing siblings off screen */}
       <scrollbox
-        ref={scrollRef}
+        ref={(el: ScrollBoxRenderable) => scrollRef = el}
         stickyScroll={true}
         stickyStart="bottom"
         flexGrow={1}
@@ -186,28 +195,28 @@ if (line === "/session") {
         <text fg={COLORS.primary} selectable>
           llm-party | {tagsLine} | /agents /config /session /save /changes /clear /exit
         </text>
-        {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} humanName={humanName} />
+        {messages().map((msg) => (
+          <MessageBubble message={msg} humanName={humanName} />
         ))}
       </scrollbox>
 
       {/* Status bar */}
       <StatusBar
         agents={agents}
-        agentStates={agentStates}
-        stickyTarget={stickyTarget}
+        agentStates={agentStates()}
+        stickyTarget={stickyTarget()}
       />
 
       {/* Input */}
       <InputLine
         humanName={humanName}
         onSubmit={handleSubmit}
-        disabled={dispatching || showAgents || showInfo}
-        disabledMessage={showAgents ? "" : undefined}
+        disabled={dispatching() || showAgents() || showInfo()}
+        disabledMessage={showAgents() ? "" : undefined}
       />
 
       {/* Agents overlay */}
-      {showAgents && (
+      {showAgents() && (
         <AgentsPanel
           agents={agents}
           onClose={() => setShowAgents(false)}
@@ -217,12 +226,13 @@ if (line === "/session") {
           }}
         />
       )}
-      {showInfo && (
+      {showInfo() && (
         <InfoPanel
-          sessionId={orchestrator.getSessionId()}
+          sessionId={props.orchestrator.getSessionId()}
           onClose={() => setShowInfo(false)}
         />
       )}
     </box>
+    </Show>
   );
 }
