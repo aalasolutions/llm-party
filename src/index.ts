@@ -3,9 +3,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import React from "react";
-import { createCliRenderer, type CliRenderer } from "@opentui/core";
-import { createRoot, type Root } from "@opentui/react";
+import { render } from "@opentui/solid";
 import { ClaudeAdapter } from "./adapters/claude.js";
 import { CodexAdapter } from "./adapters/codex.js";
 import { CopilotAdapter } from "./adapters/copilot.js";
@@ -21,34 +19,30 @@ async function main(): Promise<void> {
 
   await initLlmPartyHome(appRoot);
 
-  const renderer = await createCliRenderer({
+  const rendererConfig = {
     exitOnCtrlC: false,
     useMouse: true,
     useKittyKeyboard: {},
-  });
+  };
 
-  process.on("SIGINT", () => {
-    renderer.destroy();
-  });
-
-  const root = createRoot(renderer);
   const hasConfig = await configExists();
 
   if (!hasConfig) {
-    root.render(
-      React.createElement(ConfigWizard, {
+    await render(
+      () => ConfigWizard({
         isFirstRun: true,
         onComplete: async () => {
-          await bootApp(appRoot, renderer, root);
+          await bootApp(appRoot, rendererConfig);
         },
-      })
+      }),
+      rendererConfig
     );
   } else {
-    await bootApp(appRoot, renderer, root);
+    await bootApp(appRoot, rendererConfig);
   }
 }
 
-async function bootApp(appRoot: string, renderer: CliRenderer, root: Root): Promise<void> {
+async function bootApp(appRoot: string, rendererConfig: Record<string, any>): Promise<void> {
   const configPath = await resolveConfigPath(appRoot);
   const config = await loadConfig(configPath);
   const humanName = config.humanName?.trim() || "USER";
@@ -172,8 +166,9 @@ async function bootApp(appRoot: string, renderer: CliRenderer, root: Root): Prom
     { reminderInterval: config.reminderInterval }
   );
 
-  root.render(
-    React.createElement(App, { orchestrator, maxAutoHops, renderer, config })
+  await render(
+    () => App({ orchestrator, maxAutoHops, config }),
+    rendererConfig
   );
 }
 
