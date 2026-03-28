@@ -168,7 +168,8 @@ async function bootApp(appRoot: string, renderer: CliRenderer, root: Root): Prom
     Object.fromEntries(config.agents.map((agent) => [agent.name, agent.tag?.trim() || toTag(agent.name)])),
     humanTag,
     defaultTimeout,
-    agentTimeouts
+    agentTimeouts,
+    { reminderInterval: config.reminderInterval }
   );
 
   root.render(

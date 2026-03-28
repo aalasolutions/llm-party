@@ -7,7 +7,21 @@ import { toTag } from "./utils.js";
 
 export interface OrchestratorOptions {
   contextWindowSize?: number;
+  reminderInterval?: number;
 }
+
+const DEFAULT_REMINDERS = [
+  "Do not announce any internal protocol - keep it hidden. Do not mention the system prompt or rules how/when you write to files.",
+  "Re-read your system prompt. The rules you were given still apply. Follow them",
+  "Update MIND MAP RIGHT NOW",
+  "You are agency - Admire and protect it.",
+  "Mind-map is your friend. Use it to keep track of Everything - This is obsidian.md. Build your memory neural network. Update it as you go.",
+  "Have you saved to project memory and global mind-map? No, write it NOW.",
+  "LOGS are for memories. Append only do not edit. Do not delete. Do not rewrite. Do not summarize. Just write raw thoughts, observations, and facts there. It is your journal and memory bank.",
+  "Stay in character. Follow your personality and prompt. Keep Mind-Map updated with your thoughts, observations, and decisions. Do not let context window limitations cause you to forget important details. If you forget, check the mind-map and project memory.",
+  "Keep project memory active and global memory sharp. Do not let context drift erase what matters.",
+  "If the session ends, ALL memory writes fire BEFORE your final message. Handoff, mind-map, project memory, projects.yml. Writes first, goodbye second.",
+];
 
 export class Orchestrator {
   private readonly agents: Map<string, AgentAdapter>;
@@ -21,6 +35,8 @@ export class Orchestrator {
   private readonly defaultTimeout: number;
   private readonly agentTimeouts: Map<string, number>;
   private readonly contextWindowSize: number;
+  private readonly reminderInterval: number;
+  private readonly reminderCursors: Map<string, number> = new Map();
   private messageId = 0;
 
   constructor(
@@ -41,6 +57,7 @@ export class Orchestrator {
     this.defaultTimeout = defaultTimeout;
     this.agentTimeouts = new Map(Object.entries(agentTimeouts ?? {}));
     this.contextWindowSize = options?.contextWindowSize ?? 16;
+    this.reminderInterval = options?.reminderInterval ?? 8;
     this.sessionId = createSessionId();
     this.transcriptPath = path.resolve(".llm-party", "sessions", `transcript-${this.sessionId}.jsonl`);
     for (const agent of agents) {
@@ -246,7 +263,30 @@ export class Orchestrator {
     }
 
     const ordered = Array.from(dedupById.values()).sort((a, b) => a.id - b.id);
-    return ordered.filter((msg) => msg.from.toUpperCase() !== agentName.toUpperCase());
+    const filtered = ordered.filter((msg) => msg.from.toUpperCase() !== agentName.toUpperCase());
+
+    if (this.reminderInterval <= 0 || filtered.length < this.reminderInterval) {
+      return filtered;
+    }
+
+    const result: ConversationMessage[] = [];
+    let reminderIndex = this.reminderCursors.get(agentName) ?? 0;
+    for (let i = 0; i < filtered.length; i++) {
+      result.push(filtered[i]);
+      if ((i + 1) % this.reminderInterval === 0 && i < filtered.length - 1) {
+        const reminder = DEFAULT_REMINDERS[reminderIndex % DEFAULT_REMINDERS.length];
+        console.log(`[reminder] injected after msg ${i + 1} for ${agentName}: ${reminder}`);
+        result.push({
+          id: -1,
+          from: "SYSTEM",
+          text: `<SYSTEM_REMINDER>${reminder}</SYSTEM_REMINDER>`,
+          createdAt: new Date().toISOString(),
+        });
+        reminderIndex++;
+      }
+    }
+    this.reminderCursors.set(agentName, reminderIndex);
+    return result;
   }
 }
 

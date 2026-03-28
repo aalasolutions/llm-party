@@ -63,12 +63,14 @@ export async function writeWizardConfig(
     humanTag: existingConfig?.humanTag,
     maxAutoHops: existingConfig?.maxAutoHops ?? 15,
     timeout: existingConfig?.timeout,
+    reminderInterval: existingConfig?.reminderInterval,
     agents,
   };
 
   // Clean undefined fields
   if (!config.humanTag) delete config.humanTag;
   if (config.timeout === undefined) delete config.timeout;
+  if (config.reminderInterval === undefined) delete config.reminderInterval;
 
   await mkdir(LLM_PARTY_HOME, { recursive: true });
   const configPath = path.join(LLM_PARTY_HOME, "config.json");

@@ -25,6 +25,7 @@ export interface AppConfig {
   humanTag?: string;
   maxAutoHops?: number | "unlimited";
   timeout?: number;
+  reminderInterval?: number;
   agents: PersonaConfig[];
 }
 
