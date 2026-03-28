@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from "react";
-import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react";
+import { createSignal, createEffect, onCleanup } from "solid-js";
+import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid";
 import { COLORS } from "./theme.js";
 
 interface Props {
@@ -15,43 +15,39 @@ const FUNCTION_KEYS = new Set([
   "f7", "f8", "f9", "f10", "f11", "f12",
 ]);
 
-export function InputLine({ humanName, onSubmit, disabled, disabledMessage }: Props) {
-  const valueRef = useRef("");
-  const cursorRef = useRef(0);
-  const [, forceRender] = useState(0);
-  const historyRef = useRef<string[]>([]);
-  const historyIndexRef = useRef(-1);
-  const savedInputRef = useRef("");
-  const tuiRenderer = useRenderer();
-  const { width: termWidth } = useTerminalDimensions();
+export function InputLine(props: Props) {
+  let value = "";
+  let cursor = 0;
+  let history: string[] = [];
+  let historyIndex = -1;
+  let savedInput = "";
 
-  // Use refs for value/cursor to avoid re-rendering parent on every keystroke.
-  // Only this component re-renders via forceRender.
+  const [tick, setTick] = createSignal(0);
+  const tuiRenderer = useRenderer();
+  const dims = useTerminalDimensions();
+
+  // Force a reactive update so JSX re-evaluates
   const update = (newValue: string, newCursor: number) => {
-    valueRef.current = newValue;
-    cursorRef.current = newCursor;
-    forceRender((n) => n + 1);
+    value = newValue;
+    cursor = newCursor;
+    setTick((n) => n + 1);
   };
 
   // Handle paste events from terminal
-  useEffect(() => {
+  createEffect(() => {
+    const isDisabled = props.disabled;
     const handlePaste = (event: any) => {
-      if (disabled) return;
+      if (isDisabled) return;
       const text = new TextDecoder().decode(event.bytes);
       if (!text) return;
-      const val = valueRef.current;
-      const cur = cursorRef.current;
-      update(val.slice(0, cur) + text + val.slice(cur), cur + text.length);
+      update(value.slice(0, cursor) + text + value.slice(cursor), cursor + text.length);
     };
     tuiRenderer.keyInput.on("paste", handlePaste);
-    return () => { tuiRenderer.keyInput.off("paste", handlePaste); };
-  }, [disabled, tuiRenderer]);
+    onCleanup(() => { tuiRenderer.keyInput.off("paste", handlePaste); });
+  });
 
   useKeyboard((key) => {
-    if (disabled) return;
-
-    const value = valueRef.current;
-    const cursor = cursorRef.current;
+    if (props.disabled) return;
 
     // Shift+Enter: insert newline
     if (key.shift && (key.name === "enter" || key.name === "return")) {
@@ -63,9 +59,9 @@ export function InputLine({ humanName, onSubmit, disabled, disabledMessage }: Pr
     if (key.name === "enter" || key.name === "return") {
       const trimmed = value.trim();
       if (trimmed) {
-        historyRef.current.push(trimmed);
-        historyIndexRef.current = -1;
-        onSubmit(trimmed);
+        history.push(trimmed);
+        historyIndex = -1;
+        props.onSubmit(trimmed);
       }
       update("", 0);
       return;
@@ -163,11 +159,10 @@ export function InputLine({ humanName, onSubmit, disabled, disabledMessage }: Pr
 
     // Up arrow: previous input history
     if (key.name === "up") {
-      const history = historyRef.current;
       if (history.length === 0) return;
-      if (historyIndexRef.current === -1) savedInputRef.current = value;
-      const newIndex = Math.min(history.length - 1, historyIndexRef.current + 1);
-      historyIndexRef.current = newIndex;
+      if (historyIndex === -1) savedInput = value;
+      const newIndex = Math.min(history.length - 1, historyIndex + 1);
+      historyIndex = newIndex;
       const entry = history[history.length - 1 - newIndex];
       update(entry, entry.length);
       return;
@@ -175,13 +170,13 @@ export function InputLine({ humanName, onSubmit, disabled, disabledMessage }: Pr
 
     // Down arrow: next input history or restore saved input
     if (key.name === "down") {
-      if (historyIndexRef.current === -1) return;
-      const newIndex = historyIndexRef.current - 1;
-      historyIndexRef.current = newIndex;
+      if (historyIndex === -1) return;
+      const newIndex = historyIndex - 1;
+      historyIndex = newIndex;
       if (newIndex === -1) {
-        update(savedInputRef.current, savedInputRef.current.length);
+        update(savedInput, savedInput.length);
       } else {
-        const entry = historyRef.current[historyRef.current.length - 1 - newIndex];
+        const entry = history[history.length - 1 - newIndex];
         update(entry, entry.length);
       }
       return;
@@ -201,52 +196,49 @@ export function InputLine({ humanName, onSubmit, disabled, disabledMessage }: Pr
     }
   });
 
-  const value = valueRef.current;
-  const cursor = cursorRef.current;
-  const borderColor = disabled ? COLORS.borderDim : COLORS.borderActive;
-  const label = `${humanName} > `;
-  const separator = "─".repeat(Math.max(0, termWidth - 2));
+  // Read tick() so Solid tracks it and re-runs this derived computation
+  const currentValue = () => { tick(); return value; };
+  const currentCursor = () => { tick(); return cursor; };
 
-  if (disabled) {
-    const msg = disabledMessage !== undefined ? disabledMessage : "waiting for agents...";
-    return (
-      <box flexDirection="column" paddingX={1} width="100%" flexShrink={0}>
-        <text fg={borderColor}>{separator}</text>
-        {msg ? (
-          <text fg={COLORS.textDim}>{label}{msg}</text>
-        ) : (
-          <text fg={COLORS.textDim}>{label}</text>
-        )}
-      </box>
-    );
-  }
-
-  if (value.length === 0) {
-    return (
-      <box flexDirection="column" paddingX={1} width="100%" flexShrink={0}>
-        <text fg={borderColor}>{separator}</text>
-        <text>
-          <span fg={COLORS.human}><strong>{label}</strong></span>
-          <span bg={COLORS.textPrimary} fg="#000000"> </span>
-          <span fg={COLORS.textFaint}> Type a message or /command...</span>
-        </text>
-      </box>
-    );
-  }
-
-  const before = value.slice(0, cursor);
-  const cursorChar = cursor < value.length ? value[cursor] : " ";
-  const after = cursor < value.length ? value.slice(cursor + 1) : "";
+  const borderColor = () => props.disabled ? COLORS.borderDim : COLORS.borderActive;
+  const label = () => `${props.humanName} > `;
+  const separator = () => "─".repeat(Math.max(0, dims().width - 2));
 
   return (
     <box flexDirection="column" paddingX={1} width="100%" flexShrink={0}>
-      <text fg={borderColor}>{separator}</text>
-      <text>
-        <span fg={COLORS.human}><strong>{label}</strong></span>
-        {before}
-        <span bg={COLORS.textPrimary} fg="#000000">{cursorChar}</span>
-        {after}
-      </text>
+      <text fg={borderColor()}>{separator()}</text>
+      {props.disabled ? (
+        (() => {
+          const msg = props.disabledMessage !== undefined ? props.disabledMessage : "waiting for agents...";
+          return msg ? (
+            <text fg={COLORS.textDim}>{label()}{msg}</text>
+          ) : (
+            <text fg={COLORS.textDim}>{label()}</text>
+          );
+        })()
+      ) : currentValue().length === 0 ? (
+        <text>
+          <span style={{ fg: COLORS.human }}><strong>{label()}</strong></span>
+          <span style={{ bg: COLORS.textPrimary, fg: "#000000" }}> </span>
+          <span style={{ fg: COLORS.textFaint }}> Type a message or /command...</span>
+        </text>
+      ) : (
+        (() => {
+          const v = currentValue();
+          const c = currentCursor();
+          const before = v.slice(0, c);
+          const cursorChar = c < v.length ? v[c] : " ";
+          const after = c < v.length ? v.slice(c + 1) : "";
+          return (
+            <text>
+              <span style={{ fg: COLORS.human }}><strong>{label()}</strong></span>
+              {before}
+              <span style={{ bg: COLORS.textPrimary, fg: "#000000" }}>{cursorChar}</span>
+              {after}
+            </text>
+          );
+        })()
+      )}
     </box>
   );
 }
