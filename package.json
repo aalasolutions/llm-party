@@ -40,7 +40,7 @@
   "scripts": {
     "dev": "bun run src/index.ts",
     "dev:watch": "bun --watch run src/index.ts",
-    "build": "bun build src/index.ts --outdir=dist --target=bun",
+    "build": "bun build src/index.ts --outdir=dist --target=bun --external @anthropic-ai/claude-agent-sdk",
     "start": "bun dist/index.js",
     "prepublishOnly": "bun run build"
   },
