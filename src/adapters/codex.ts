@@ -30,6 +30,7 @@ export class CodexAdapter implements AgentAdapter {
       sandboxMode: "danger-full-access",
       workingDirectory: process.cwd(),
       approvalPolicy: "never",
+      skipGitRepoCheck: true,
     });
   }
 
