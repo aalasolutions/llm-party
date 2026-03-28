@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { createSignal, type Setter } from "solid-js";
 import { execFile } from "node:child_process";
 import { Orchestrator } from "../orchestrator.js";
 import { initProjectFolder } from "../config/loader.js";
@@ -13,10 +13,10 @@ function nextSystemId(): number {
 }
 
 interface UseOrchestratorReturn {
-  messages: DisplayMessage[];
-  agentStates: Map<string, AgentState>;
-  stickyTarget: string[] | undefined;
-  dispatching: boolean;
+  messages: () => DisplayMessage[];
+  agentStates: () => Map<string, AgentState>;
+  stickyTarget: () => string[] | undefined;
+  dispatching: () => boolean;
   dispatch: (line: string) => Promise<void>;
   addSystemMessage: (text: string) => void;
   clearMessages: () => void;
@@ -26,21 +26,17 @@ export function useOrchestrator(
   orchestrator: Orchestrator,
   maxAutoHops: number
 ): UseOrchestratorReturn {
-  const [messages, setMessages] = useState<DisplayMessage[]>([]);
-  const [agentStates, setAgentStates] = useState<Map<string, AgentState>>(
-    () => new Map(orchestrator.listAgents().map((a) => [a.name, "idle" as AgentState]))
+  const [messages, setMessages] = createSignal<DisplayMessage[]>([]);
+  const [agentStates, setAgentStates] = createSignal<Map<string, AgentState>>(
+    new Map(orchestrator.listAgents().map((a) => [a.name, "idle" as AgentState]))
   );
-  const [stickyTarget, setStickyTarget] = useState<string[] | undefined>(undefined);
-  const [dispatching, setDispatching] = useState(false);
-  const projectFolderReady = useRef(false);
-  const agentProviders = useRef(
-    new Map(orchestrator.listAgents().map((a) => [a.name.toUpperCase(), a.provider]))
-  );
-  const agentTags = useRef(
-    new Map(orchestrator.listAgents().map((a) => [a.name.toUpperCase(), a.tag]))
-  );
+  const [stickyTarget, setStickyTarget] = createSignal<string[] | undefined>(undefined);
+  const [dispatching, setDispatching] = createSignal(false);
+  let projectFolderReady = false;
+  let agentProviders = new Map(orchestrator.listAgents().map((a) => [a.name.toUpperCase(), a.provider]));
+  let agentTags = new Map(orchestrator.listAgents().map((a) => [a.name.toUpperCase(), a.tag]));
 
-  const dispatch = useCallback(async (line: string) => {
+  const dispatch = async (line: string) => {
     if (!line.trim()) return;
 
     const routing = parseRouting(line);
@@ -59,11 +55,11 @@ export function useOrchestrator(
       setStickyTarget(explicitTargets);
     }
 
-    const targets = explicitTargets ?? stickyTarget;
+    const targets = explicitTargets ?? stickyTarget();
 
-    if (!projectFolderReady.current) {
+    if (!projectFolderReady) {
       await initProjectFolder(process.cwd());
-      projectFolderReady.current = true;
+      projectFolderReady = true;
     }
 
     const userMessage = orchestrator.addUserMessage(routing.raw);
@@ -82,17 +78,17 @@ export function useOrchestrator(
         orchestrator,
         targets,
         maxAutoHops,
-        agentProviders.current,
-        agentTags.current,
+        agentProviders,
+        agentTags,
         setMessages,
         setAgentStates
       );
     } finally {
       setDispatching(false);
     }
-  }, [orchestrator, maxAutoHops, stickyTarget]);
+  };
 
-  const addSystemMessage = useCallback((text: string) => {
+  const addSystemMessage = (text: string) => {
     const msg: DisplayMessage = {
       id: nextSystemId(),
       from: "SYSTEM",
@@ -101,12 +97,12 @@ export function useOrchestrator(
       type: "system",
     };
     setMessages((prev) => [...prev, msg]);
-  }, []);
+  };
 
-  const clearMessages = useCallback(() => {
+  const clearMessages = () => {
     orchestrator.clearConversation();
     setMessages([]);
-  }, [orchestrator]);
+  };
 
   return { messages, agentStates, stickyTarget, dispatching, dispatch, addSystemMessage, clearMessages };
 }
@@ -117,8 +113,8 @@ async function dispatchWithHandoffs(
   maxHops: number,
   agentProviders: Map<string, string>,
   agentTags: Map<string, string>,
-  setMessages: React.Dispatch<React.SetStateAction<DisplayMessage[]>>,
-  setAgentStates: React.Dispatch<React.SetStateAction<Map<string, AgentState>>>
+  setMessages: Setter<DisplayMessage[]>,
+  setAgentStates: Setter<Map<string, AgentState>>
 ): Promise<void> {
   let targets = initialTargets;
   let hops = 0;
