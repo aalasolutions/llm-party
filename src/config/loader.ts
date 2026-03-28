@@ -7,6 +7,22 @@ import { AppConfig } from "../types.js";
 const VALID_PROVIDER_IDS = new Set(PROVIDERS.map((p) => p.id));
 const LLM_PARTY_HOME = path.join(homedir(), ".llm-party");
 
+const MIND_MAP_INDEX = `# Living Memory Neural Network
+
+This is the shared brain between all agents. Read this file FIRST on every boot.
+
+## How to use this index
+
+1. Read this file to know what exists
+2. Load entries relevant to your current task
+3. Skip entries that do not apply to what you are about to do
+4. When you write a new entry, update this index with a one-liner
+
+## Entries
+
+<!-- Agents: add new entries below. One line per entry. Format: - [Title](filename.md) — one-line summary -->
+`;
+
 function validateConfig(data: unknown): void {
   if (!data || typeof data !== "object") {
     throw new Error("Config must be an object");
@@ -173,13 +189,13 @@ export async function initProjectFolder(cwd: string): Promise<void> {
 
 export async function initLlmPartyHome(appRoot: string): Promise<void> {
   await mkdir(LLM_PARTY_HOME, { recursive: true });
-  await mkdir(path.join(LLM_PARTY_HOME, "sessions"), { recursive: true });
   await mkdir(path.join(LLM_PARTY_HOME, "network"), { recursive: true });
   await mkdir(path.join(LLM_PARTY_HOME, "agents"), { recursive: true });
   await mkdir(path.join(LLM_PARTY_HOME, "skills"), { recursive: true });
 
   await ensureFile(path.join(LLM_PARTY_HOME, "network", "projects.yml"), "projects: []\n");
   await mkdir(path.join(LLM_PARTY_HOME, "network", "mind-map"), { recursive: true });
+  await ensureFile(path.join(LLM_PARTY_HOME, "network", "mind-map", "INDEX.md"), MIND_MAP_INDEX);
 
 }
 
