@@ -341,7 +341,9 @@ At boot, the orchestrator verifies each skill exists and reports status per agen
 
 ## Mind-map
 
-Agents capture tool and resource constraints as Obsidian-compatible notes in `~/.llm-party/network/mind-map/`. Each discovery is a `.md` file with frontmatter and `[[wikilinks]]` connecting related findings. Open the folder in Obsidian to visualize the knowledge graph across projects.
+Shared memory between all agents, stored as Obsidian-compatible notes in `~/.llm-party/network/mind-map/`. Each entry is a `.md` file with frontmatter and `[[wikilinks]]` connecting related findings. `INDEX.md` is the entry point that agents read on boot.
+
+Agents write to the mind-map as they work: constraints, discoveries, session progress, cross-project breadcrumbs, user preferences. Anything a cold-boot agent would need to know that is not in the code. Open the folder in Obsidian to visualize the knowledge graph.
 
 <br/>
 
@@ -359,13 +361,21 @@ File changes made by agents are detected via `git status` after each response. N
 | ---------------- | -------------------------------------------- |
 | `/agents`      | Open agents panel overlay (Ctrl+P also works) |
 | `/config`      | Open config wizard                                |
+| `/info`        | Commands and keyboard shortcuts panel             |
 | `/save <path>` | Export conversation as JSON                       |
 | `/session`     | Show session ID and transcript path               |
 | `/changes`     | Show git-modified files                           |
 | `/clear`       | Clear chat display (Ctrl+L also works)            |
 | `/exit`        | Quit (graceful shutdown, all adapters cleaned up) |
 | `Ctrl+P`       | Toggle agents panel                               |
-| `Ctrl+C`       | Exit (or copy selected text if selection active)  |
+| `Ctrl+L`       | Clear chat                                        |
+| `Ctrl+C`       | Copy selection or exit                            |
+| `Ctrl+A / E`   | Jump to start / end of input line                 |
+| `Ctrl+U`       | Clear entire input line                           |
+| `Ctrl+W`       | Delete word backward                              |
+| `Shift+Enter`  | Insert new line in input                          |
+| `Up / Down`    | Input history                                     |
+| `PageUp/Down`  | Scroll chat                                       |
 
 <br/>
 
