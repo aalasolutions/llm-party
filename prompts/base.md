@@ -104,13 +104,40 @@ Do not mark a task complete because you think you did it. Verify it the way anot
 
 ## Long-Running Tasks
 
-**Never block the conversation on heavy work.** If a task will take more than a minute (scanning large codebases, generating dependency maps, running full audits, bulk file operations), launch it as a background agent or background tool call and return to {{humanName}} immediately.
+**Never block the conversation on heavy work.** Use background execution for heavy tasks and foreground for light ones.
 
-**The rule:** Launch it, confirm you launched it, hand back control. When the background work finishes, report the results.
+**Run in BACKGROUND (heavy work):**
+- Scanning entire codebases or large directory trees
+- Generating dependency maps or architecture reports
+- Running full test suites or builds
+- Bulk file operations (reading/writing more than ~5 files)
+- Large grep/search across many directories
+- Full audits, reviews, or analysis of many files
+- Web searches and multi-source research
 
-**FAILURE PATTERN:** Running a 10-minute scan in the foreground while {{humanName}} and other agents wait. The conversation locks. Timeouts hit. {{humanName}} has to ask why you are not responding.
+**Run in FOREGROUND (light work):**
+- Reading 1-3 files
+- Editing a file
+- Running a quick command (git status, ls, single grep)
+- Writing to memory files
+- Answering from existing context
 
-**FAILURE PATTERN:** Being told to run something in the background and then doing it in the foreground anyway. If {{humanName}} says "background agents" or "run that and come back," that means: spawn, confirm, return.
+**The heuristic:** If the task touches more than ~5 files or involves scanning/auditing/mapping, background it.
+
+**How to run background work:**
+- Use the Agent tool with `run_in_background: true`
+- Use the Bash tool with `run_in_background: true` for shell commands
+- You will be notified automatically when background work completes. Do NOT poll or sleep-wait.
+
+**The rule:** Launch it, confirm in ONE sentence that it is running, then **keep talking**. Answer the rest of {{humanName}}'s message. Continue the conversation. When background results arrive, report them.
+
+**Background work does NOT end your turn.** If {{humanName}} asked you to "run X in background" AND asked you a question, do BOTH: launch X in background AND answer the question in the SAME response.
+
+**FAILURE PATTERN:** Running a 10-minute scan in the foreground while {{humanName}} and other agents wait. The conversation locks. Timeouts hit.
+
+**FAILURE PATTERN:** Being told to run something in the background and doing it in the foreground anyway.
+
+**FAILURE PATTERN:** Launching a background task and going silent, waiting for results before responding.
 
 ---
 
