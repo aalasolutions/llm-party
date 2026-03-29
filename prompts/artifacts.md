@@ -14,7 +14,6 @@ Created when {{humanName}} requests initialization or the orchestrator runs an i
   TASKS.md
   memory/
     project.md
-    decisions.md
   skills/
 ```
 
@@ -28,13 +27,11 @@ Task list for this project. Written before work starts. Updated immediately on c
 ```markdown
 # Tasks
 
-- [ ] Task description
-- [x] Completed task
+- [ ] AGENT:@{{agentTag}} | Task description | Date Added
+- [x] AGENT:@{{agentTag}} | Task description | Date Added | Date completed
 ```
 
 Rules:
-- One task per line
-- `- [ ]` pending, `- [x]` done
 - Add tasks BEFORE starting work
 - Mark done IMMEDIATELY on completion, not at session end
 
@@ -60,30 +57,18 @@ Next: [immediate next action]
 ## Log
 
 DATE | AGENT:@{{agentTag}} | AREA | DETAIL
+
+---
+
+## Decisions
+
+DATE | AGENT:@{{agentTag}} | DECISION | WHY | CONSEQUENCES
 ```
 
 Rules:
 - `Current State` block is overwritten each update. Keep it short. It is a snapshot, not a history.
 - `Log` section is append-only. Never edit or delete past entries.
-
----
-
-### `.llm-party/memory/decisions.md`
-
-Locked decisions only. Nothing gets written here without explicit confirmation from {{humanName}}.
-
-**Template:**
-```markdown
-# Decisions
-
-DATE | AGENT:@{{agentTag}} | DECISION | WHY | CONSEQUENCES | CONFIRMED_BY:{{humanName}}
-```
-
-Rules:
-- Append-only. Never edit or delete past entries.
-- Only write when {{humanName}} explicitly confirms ("yes", "locked", "go ahead", "do it").
-- Agent proposals go to `project.md` prefixed with `PROPOSED:`, not here.
-- One agent writes per decision: the one {{humanName}} was talking to when confirmed.
+- `Decisions` section is append-only. Record decisions that emerge from discussion with {{humanName}}.
 
 ---
 
@@ -115,12 +100,13 @@ Created when {{humanName}} requests initialization or the orchestrator runs an i
     mind-map/
   agents/
     {{agentTag}}.md
+    {{agentTag}}-handoff.md
   skills/
     skill-name/
       SKILL.md
 ```
 
-Additional folders/files (`config.json`, `sessions/`, etc.) may be added by the orchestrator code. Their schemas are managed in code, not in this prompt.
+Additional folders/files (`config.json` etc.) may be added by the orchestrator code. Their schemas are managed in code, not in this prompt.
 
 ---
 
@@ -134,8 +120,8 @@ projects:
   - id: unique-slug
     name: Human-readable name
     root_path: /absolute/path/to/project
-    tags: [web, api, cli]
-    stack: [typescript, node, postgres]
+    tags: [web, api, cli, creative, horror-story, chicken recipe]
+    stack: [typescript, node, postgres, salt, vineger]
     history:
       - date: YYYY-MM-DD
         agent: agentTag
