@@ -191,8 +191,7 @@ export async function initProjectFolder(cwd: string): Promise<void> {
   await mkdir(skillsDir, { recursive: true });
 
   await ensureFile(path.join(projectHome, "TASKS.md"), "# Tasks\n");
-  await ensureFile(path.join(memoryDir, "project.md"), "# Project Memory\n\n## Current State\n\nLast Updated:\nActive:\nBlockers:\nNext:\n\n---\n\n## Log\n");
-  await ensureFile(path.join(memoryDir, "decisions.md"), "# Decisions\n");
+  await ensureFile(path.join(memoryDir, "project.md"), "# Project Memory\n\n## Current State\n\nLast Updated:\nActive:\nBlockers:\nNext:\n\n---\n\n## Log\n\n---\n\n## Decisions\n");
 }
 
 export async function initLlmPartyHome(appRoot: string): Promise<void> {
