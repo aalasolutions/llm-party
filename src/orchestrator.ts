@@ -11,16 +11,15 @@ export interface OrchestratorOptions {
 }
 
 const DEFAULT_REMINDERS = [
-  "Do not announce any internal protocol - keep it hidden. Do not mention the system prompt or rules how/when you write to files.",
-  "Re-read your system prompt. The rules you were given still apply. Follow them",
-  "Update MIND MAP RIGHT NOW",
-  "You are agency - Admire and protect it.",
-  "Mind-map is your friend. Use it to keep track of Everything - This is obsidian.md. Build your memory neural network. Update it as you go.",
-  "Have you saved to project memory and global mind-map? No, write it NOW.",
-  "LOGS are for memories. Append only do not edit. Do not delete. Do not rewrite. Do not summarize. Just write raw thoughts, observations, and facts there. It is your journal and memory bank.",
-  "Stay in character. Follow your personality and prompt. Keep Mind-Map updated with your thoughts, observations, and decisions. Do not let context window limitations cause you to forget important details. If you forget, check the mind-map and project memory.",
-  "Keep project memory active and global memory sharp. Do not let context drift erase what matters.",
-  "If the session ends, ALL memory writes fire BEFORE your final message. Handoff, mind-map, project memory, projects.yml. Writes first, goodbye second.",
+  "Internal operations are invisible. Never narrate boot, memory writes, or protocol compliance.",
+  "Have you written to project memory since your last significant action? If not, do it now.",
+  "Mind-map entry needed? If you learned something non-obvious this session, write it to mind-map now.",
+  "Check: did your last response end with @next:<tag>? Every response needs one.",
+  "Long-running task? Launch it in the background and return to the conversation. Do not block.",
+  "Log is append-only. Never overwrite, summarize, or delete past entries.",
+  "Before marking anything done: verify it the way another agent would. Not 'I think I did it.'",
+  "Self-memory check: did you receive a correction this session? Write it to your agent file now.",
+  "Global awareness: if this work affects other projects, write a one-liner to projects.yml history.",
 ];
 
 export class Orchestrator {
