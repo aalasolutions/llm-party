@@ -253,16 +253,7 @@ export class Orchestrator {
   }
 
   private buildInputForAgent(agentName: string, unseen: ConversationMessage[]): ConversationMessage[] {
-    const recent = this.conversation.slice(-this.contextWindowSize);
-    const merged = [...recent, ...unseen];
-    const dedupById = new Map<number, ConversationMessage>();
-
-    for (const msg of merged) {
-      dedupById.set(msg.id, msg);
-    }
-
-    const ordered = Array.from(dedupById.values()).sort((a, b) => a.id - b.id);
-    const filtered = ordered.filter((msg) => msg.from.toUpperCase() !== agentName.toUpperCase());
+    const filtered = unseen.filter((msg) => msg.from.toUpperCase() !== agentName.toUpperCase());
 
     if (this.reminderInterval <= 0 || filtered.length < this.reminderInterval) {
       return filtered;
