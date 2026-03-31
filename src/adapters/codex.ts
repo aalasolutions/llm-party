@@ -6,13 +6,15 @@ export class CodexAdapter implements AgentAdapter {
   public name: string;
   public provider = "codex";
   public model: string;
+  public humanName: string;
 
   private codex?: Codex;
   private thread?: ReturnType<Codex["startThread"]>;
 
-  constructor(name: string, model: string) {
+  constructor(name: string, model: string, humanName: string) {
     this.name = name;
     this.model = model;
+    this.humanName = humanName;
   }
 
   async init(config: PersonaConfig): Promise<void> {
@@ -42,7 +44,7 @@ export class CodexAdapter implements AgentAdapter {
       return "[Aborted] Codex was cancelled";
     }
 
-    const turn = await this.thread.run(formatTranscript(messages));
+    const turn = await this.thread.run(formatTranscript(messages, this.name, this.humanName));
 
     if (turn.finalResponse && turn.finalResponse.length > 0) {
       return turn.finalResponse;
