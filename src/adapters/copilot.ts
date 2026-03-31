@@ -6,6 +6,7 @@ export class CopilotAdapter implements AgentAdapter {
   public name: string;
   public provider = "copilot";
   public model: string;
+  public humanName: string;
 
   private client?: CopilotClient;
   private session?: CopilotSession;
@@ -13,9 +14,10 @@ export class CopilotAdapter implements AgentAdapter {
   private cliPath?: string;
   private timeout = 600000;
 
-  constructor(name: string, model: string) {
+  constructor(name: string, model: string, humanName: string) {
     this.name = name;
     this.model = model;
+    this.humanName = humanName;
   }
 
   async init(config: PersonaConfig): Promise<void> {
@@ -35,7 +37,7 @@ export class CopilotAdapter implements AgentAdapter {
       return "[Aborted] Copilot was cancelled";
     }
 
-    const transcript = formatTranscript(messages);
+    const transcript = formatTranscript(messages, this.name, this.humanName);
     try {
       return await this.sendToSession(transcript);
     } catch (err) {
