@@ -1,7 +1,6 @@
 # Artifacts
 
-File and folder schemas for every artifact the system reads and writes.
-No behavioral rules here. Structure and format only.
+File and folder schemas, templates, and rules for every artifact the system reads and writes.
 
 ---
 
@@ -14,6 +13,8 @@ Created when {{humanName}} requests initialization or the orchestrator runs an i
   TASKS.md
   memory/
     project.md
+  plans/
+    YYYY-MM-DD-title.md
   skills/
 ```
 
@@ -39,7 +40,7 @@ Rules:
 
 ### `.llm-party/memory/project.md`
 
-Working log for this project. Two zones: Current State (overwritable) and Log (append-only).
+Working log for this project. Three zones: Current State (overwritable), Log (append-only), and Decisions (append-only).
 
 **Template:**
 ```markdown
@@ -69,6 +70,62 @@ Rules:
 - `Current State` block is overwritten each update. Keep it short. It is a snapshot, not a history.
 - `Log` section is append-only. Never edit or delete past entries.
 - `Decisions` section is append-only. Record decisions that emerge from discussion with {{humanName}}.
+
+---
+
+### `.llm-party/plans/`
+
+Plans for non-trivial work. One file per plan, named by date and topic.
+
+**File naming:** `YYYY-MM-DD-title.md`, e.g. `2026-03-30-self-update.md`, `2026-04-01-auth-refactor.md`
+
+**Template:**
+```markdown
+---
+date: YYYY-MM-DD
+status: planning | in-progress | completed | rejected
+agents: [@agentTag]
+---
+
+# Title
+
+## Context
+
+Why this plan exists. What triggered it. Business context, technical debt, user request, whatever led here. A future agent reading this cold should understand the motivation without needing the conversation history.
+
+## Phase 1: Description (safe, scoped)
+
+### Area (e.g., Backend, Frontend, Config)
+
+**Files to change:**
+
+| File | Lines | Change |
+|------|-------|--------|
+| `path/to/file.ts` | 10, 37 | What changes and why |
+
+- [ ] Task description
+  - [ ] Subtask if needed
+  - [ ] Subtask if needed
+- [ ] Another task
+
+## Phase 2: Description (depends on Phase 1)
+
+- [ ] Task description
+  - [ ] Subtask if needed
+
+## Open Questions
+
+- [ ] Anything unresolved that needs {{humanName}}'s input before proceeding
+- [ ] Decisions that block the next phase
+```
+
+Rules:
+- Every plan MUST have YAML frontmatter (date, status, agents).
+- Share the plan with {{humanName}} before executing.
+- Update checkboxes and status as work progresses.
+- Phase the work. Each phase independently shippable.
+- Include file paths and line numbers when known.
+- One plan per concern. Plans are never deleted.
 
 ---
 
@@ -175,7 +232,7 @@ Per-agent self memory. Not shared between agents. Each agent owns its own file.
 ```markdown
 # {{agentName}} Self Memory
 
-DATE | RULE | EXAMPLE
+DATE | PROJECT PATH | RULE | EXAMPLE
 ```
 
 Rules:
