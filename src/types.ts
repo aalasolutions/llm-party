@@ -13,6 +13,7 @@ export interface PersonaConfig {
   provider: "claude" | "copilot" | "codex" | "custom";
   cli?: "claude" | "codex" | "copilot";
   model: string;
+  active?: boolean;
   prompts?: string[];
   preloadSkills?: string[];
   resolvedPrompt?: string;
@@ -24,7 +25,7 @@ export interface PersonaConfig {
 export interface AppConfig {
   humanName?: string;
   humanTag?: string;
-  maxAutoHops?: number | "unlimited";
+  maxAutoHops?: number;
   timeout?: number;
   reminderInterval?: number;
   agents: PersonaConfig[];
