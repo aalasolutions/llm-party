@@ -6,15 +6,17 @@ export abstract class ClaudeBaseAdapter implements AgentAdapter {
   public name: string;
   public abstract provider: string;
   public model: string;
+  public humanName: string;
 
   protected systemPrompt = "";
   protected sessionId = "";
   protected runtimeEnv: NodeJS.ProcessEnv = {};
   protected claudeExecutable?: string;
 
-  constructor(name: string, model: string) {
+  constructor(name: string, model: string, humanName: string) {
     this.name = name;
     this.model = model;
+    this.humanName = humanName;
   }
 
   async init(config: PersonaConfig): Promise<void> {
@@ -43,7 +45,7 @@ export abstract class ClaudeBaseAdapter implements AgentAdapter {
   }
 
   async send(messages: ConversationMessage[], signal?: AbortSignal): Promise<string> {
-    return await this.querySDK(formatTranscript(messages), signal);
+    return await this.querySDK(formatTranscript(messages, this.name, this.humanName), signal);
   }
 
   async destroy(): Promise<void> {
