@@ -17,7 +17,7 @@
 
 <br/>
 
-A peer orchestrator that puts **Claude**, **Codex**, **Copilot**, and **GLM** in the same terminal. You talk, they listen. They talk to each other. Nobody is the boss except you.
+A peer orchestrator that puts **Claude**, **Codex**, **Copilot**, and any Claude-compatible API (GLM, Ollama, etc.) in the same terminal. You talk, they listen. They talk to each other. Nobody is the boss except you.
 
 ```
 YOU > @claude review this function
@@ -145,18 +145,31 @@ llm-party uses **official, publicly available SDKs and CLIs** published by each 
 | Codex    | [`@openai/codex-sdk`](https://www.npmjs.com/package/@openai/codex-sdk)                           | OpenAI       |
 | Copilot  | [`@github/copilot-sdk`](https://www.npmjs.com/package/@github/copilot-sdk)                       | GitHub       |
 
+Custom providers (GLM, Ollama, etc.) route through a native CLI's SDK with environment overrides. No additional SDKs are required.
+
 All authentication flows through the provider's own CLI. llm-party does not implement its own auth flow, store credentials, or intercept authentication traffic.
 
 <br/>
 
 ## Supported providers
 
+### Native providers (detected automatically)
+
 | Provider          | SDK                                | Session                                | Prompt Support                                     |
 | ----------------- | ---------------------------------- | -------------------------------------- | -------------------------------------------------- |
 | **Claude**  | `@anthropic-ai/claude-agent-sdk` | Persistent via session ID resume       | Full control                                       |
 | **Codex**   | `@openai/codex-sdk`              | Persistent thread with `run()` turns | Via `developer_instructions` (limitations below) |
 | **Copilot** | `@github/copilot-sdk`            | Persistent via `sendAndWait()`       | Full control                                       |
-| **GLM**     | Claude SDK + env proxy             | Same as Claude                         | Full control                                       |
+
+### Custom providers (config-driven)
+
+Any AI that exposes a Claude-compatible API can be added as a custom provider. Custom providers route through a native CLI (currently Claude) with environment overrides.
+
+| Provider          | API                                | Notes                                              |
+| ----------------- | ---------------------------------- | -------------------------------------------------- |
+| **GLM**     | Zhipu AI (`api.z.ai`)           | Full Claude SDK compatibility via proxy            |
+| **Ollama**  | Local (`localhost:11434`)        | Any model Ollama supports                          |
+| **Any**     | Any Claude-compatible endpoint     | Just set `AUTH_URL` and `AUTH_TOKEN`              |
 
 <br/>
 
@@ -178,7 +191,7 @@ Orchestrator
     |     +-- Claude  -> ClaudeAdapter  (SDK session, resume by ID)
     |     +-- Codex   -> CodexAdapter   (SDK thread, persistent turns)
     |     +-- Copilot -> CopilotAdapter (SDK session, sendAndWait)
-    |     +-- GLM     -> GlmAdapter     (Claude SDK + env proxy)
+    |     +-- Custom  -> CustomAdapter  (routes through native CLI + env override)
     |
     +-- Conversation Log (ordered, all messages, agent-prefixed)
     |
@@ -222,16 +235,16 @@ Each agent receives a rolling window of recent messages (configurable, default 1
 | Prompt  | Set as `systemMessage` on session creation. Full control. |
 | Tools   | Copilot built-in toolset                                    |
 
-### GLM
+### Custom (GLM, Ollama, etc.)
 
-|         |                                                           |
-| ------- | --------------------------------------------------------- |
-| SDK     | `@anthropic-ai/claude-agent-sdk` (same as Claude)       |
-| Session | Same as Claude, routed through a proxy via env overrides. |
-| Prompt  | Same as Claude. Full control.                             |
-| Tools   | Same as Claude                                            |
+|         |                                                                                  |
+| ------- | -------------------------------------------------------------------------------- |
+| SDK     | Uses the native CLI's SDK (currently Claude's `@anthropic-ai/claude-agent-sdk`) |
+| Session | Same as the underlying CLI                                                       |
+| Prompt  | Same as the underlying CLI. Full control.                                        |
+| Tools   | Same as the underlying CLI                                                       |
 
-GLM uses the Claude SDK as a transport layer. The adapter routes API calls through a proxy by setting `ANTHROPIC_BASE_URL` and model aliases via the `env` config field.
+Custom providers route API calls through a native CLI by overriding `AUTH_URL` and `AUTH_TOKEN` in the agent's `env` block. The `cli` field selects which native CLI to use (defaults to `claude`).
 
 <br/>
 
@@ -247,7 +260,7 @@ Override with `LLM_PARTY_CONFIG` env var to point to a different file.
 | --------------- | -------- | -------------------------- | ---------------------------------------------------------------------------- |
 | `humanName`   | No       | Your system username       | Display name in the terminal prompt and passed to agents                     |
 | `humanTag`    | No       | derived from `humanName` | Tag for human handoff detection (`@next:you`)                              |
-| `maxAutoHops` | No       | `15`                     | Max agent-to-agent handoffs per cycle. Use `"unlimited"` to remove the cap |
+| `maxAutoHops` | No       | `15`                     | Max agent-to-agent handoffs per cycle. `0` = unlimited                     |
 | `timeout`     | No       | `600`                    | Default timeout in seconds for all agents                                    |
 | `agents`      | Yes      |                            | Array of agent definitions                                                   |
 
@@ -257,7 +270,9 @@ Override with `LLM_PARTY_CONFIG` env var to point to a different file.
 | ------------------ | -------- | ------------------------ | --------------------------------------------------------------------------------------------------- |
 | `name`           | Yes      |                          | Display name shown in responses as `[AGENT NAME]`. Must be unique.                                |
 | `tag`            | Yes      |                        | Routing tag for `@tag` targeting. Letters, numbers, hyphens, underscores only. No spaces.         |
-| `provider`       | Yes      |                          | SDK adapter:`claude`, `codex`, `copilot`, or `glm`                                          |
+| `provider`       | Yes      |                          | SDK adapter: `claude`, `codex`, `copilot`, or `custom`                                       |
+| `cli`            | No       | `"claude"`             | For custom providers: which native CLI to route through                                       |
+| `active`         | No       | `true`                 | Set to `false` to disable an agent without removing its config                              |
 | `model`          | Yes      |                          | Model ID passed to the provider. Examples:`opus`, `sonnet`, `gpt-5.2`, `gpt-4.1`, `glm-5` |
 | `prompts`        | No       | none                     | Array of extra prompt file paths, concatenated after `base.md`. Relative to project root          |
 | `executablePath` | No       | PATH lookup              | Path to the CLI binary. Supports `~/`. Only needed if the CLI is not in your PATH                 |
@@ -294,24 +309,41 @@ Template variables available in prompt files:
 | `{{validHandoffTargets}}` | Valid `@next:tag` targets   |
 | `{{preloadedSkills}}`     | Skills assigned to this agent via `preloadSkills` |
 
-### GLM environment setup
+### Custom provider setup
 
-GLM requires environment overrides to route through a proxy. The adapter tries to load env variables from your shell `glm` alias automatically. Without the alias, provide everything in the `env` block:
+Custom providers use `AUTH_URL` and `AUTH_TOKEN` in the `env` block. The adapter maps these to the correct environment variables for the underlying CLI.
+
+**GLM (Zhipu AI):**
 
 ```json
 {
   "name": "GLM",
-  "provider": "glm",
+  "provider": "custom",
+  "cli": "claude",
   "model": "glm-5",
   "env": {
-    "ANTHROPIC_AUTH_TOKEN": "your-glm-api-key",
-    "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.5-air",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-4.5",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5"
+    "AUTH_URL": "https://api.z.ai/api/anthropic",
+    "AUTH_TOKEN": "your-glm-api-key"
   }
 }
 ```
+
+**Ollama (local):**
+
+```json
+{
+  "name": "Ollama",
+  "provider": "custom",
+  "cli": "claude",
+  "model": "llama3",
+  "env": {
+    "AUTH_URL": "http://localhost:11434/v1",
+    "AUTH_TOKEN": "ollama"
+  }
+}
+```
+
+Any endpoint that speaks the Anthropic API protocol works. Set `AUTH_URL` to the base URL and `AUTH_TOKEN` to the API key.
 
 <br/>
 
@@ -409,7 +441,7 @@ LLM_PARTY_CONFIG=/path/to/config.json bun run dev
 Run `/agents` to see available tags. Tags match against agent `tag`, `name`, and `provider`.
 
 **"Unsupported provider"**
-Valid providers: `claude`, `codex`, `copilot`, `glm`.
+Valid providers: `claude`, `codex`, `copilot`, `custom`.
 
 **"Duplicate agent name"**
 Agent names must be unique (case-insensitive). Rename one of the duplicates in config.
