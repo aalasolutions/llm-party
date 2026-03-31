@@ -11,6 +11,7 @@ import { ConfigWizard } from "./ConfigWizard.js";
 import { AgentsPanel } from "./AgentsPanel.js";
 import { InfoPanel } from "./InfoPanel.js";
 import { COLORS } from "./theme.js";
+import { loadConfig } from "../config/loader.js";
 import type { AppConfig } from "../types.js";
 
 function copyToClipboard(text: string): void {
@@ -33,6 +34,7 @@ interface AppProps {
   orchestrator: Orchestrator;
   maxAutoHops: number;
   config: AppConfig;
+  configPath: string;
 }
 
 export function App(props: AppProps) {
@@ -43,6 +45,7 @@ export function App(props: AppProps) {
   const agents = props.orchestrator.listAgents();
   let scrollRef: ScrollBoxRenderable | null = null;
   const [screen, setScreen] = createSignal<"chat" | "config">("chat");
+  const [freshConfig, setFreshConfig] = createSignal<AppConfig>(props.config);
   const [showAgents, setShowAgents] = createSignal(false);
   const [showInfo, setShowInfo] = createSignal(false);
 
@@ -127,6 +130,12 @@ export function App(props: AppProps) {
     }
 
     if (line === "/config") {
+      try {
+        const reloaded = await loadConfig(props.configPath);
+        setFreshConfig(reloaded);
+      } catch {
+        // Fall back to boot-time config if read fails
+      }
       setScreen("config");
       return;
     }
@@ -172,7 +181,7 @@ export function App(props: AppProps) {
       fallback={
         <ConfigWizard
           isFirstRun={false}
-          existingConfig={props.config}
+          existingConfig={freshConfig()}
           onComplete={() => {
             addSystemMessage("Config saved. Restart llm-party to apply changes.");
             setScreen("chat");
