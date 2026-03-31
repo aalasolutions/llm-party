@@ -4,7 +4,7 @@ import path from "node:path";
 import { PROVIDERS } from "./defaults.js";
 import { AppConfig } from "../types.js";
 
-const VALID_PROVIDER_IDS = new Set(PROVIDERS.map((p) => p.id));
+const VALID_PROVIDER_IDS = new Set([...PROVIDERS.map((p) => p.id), "custom"]);
 const LLM_PARTY_HOME = path.join(homedir(), ".llm-party");
 
 const MIND_MAP_INDEX = `# Living Memory Neural Network
@@ -224,9 +224,24 @@ export async function configExists(): Promise<boolean> {
   }
 }
 
+// TODO: Remove after 2026-06-01. Migrates legacy provider IDs (e.g. "glm") to "custom".
+// No known users have legacy configs, but this prevents validation errors for anyone
+// who upgraded from pre-v0.8 with a non-standard provider in their config.
+function migrateProviders(data: Record<string, unknown>): void {
+  if (!Array.isArray(data.agents)) return;
+  for (const agent of data.agents) {
+    if (!agent || typeof agent !== "object") continue;
+    if (typeof agent.provider === "string" && !VALID_PROVIDER_IDS.has(agent.provider)) {
+      agent.provider = "custom";
+      if (!agent.cli) agent.cli = "claude";
+    }
+  }
+}
+
 export async function loadConfig(configPath: string): Promise<AppConfig> {
   const raw = await readFile(configPath, "utf8");
   const parsed = JSON.parse(raw);
+  migrateProviders(parsed);
   validateConfig(parsed);
   return normalizeConfig(parsed as Record<string, unknown>);
 }
