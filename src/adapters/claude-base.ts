@@ -24,7 +24,22 @@ export abstract class ClaudeBaseAdapter implements AgentAdapter {
   }
 
   protected async buildEnv(config: PersonaConfig): Promise<NodeJS.ProcessEnv> {
-    return { ...process.env, ...(config.env ?? {}) };
+    const configEnv = config.env ?? {};
+    const mapped: Record<string, string> = {};
+
+    if (configEnv.AUTH_URL) {
+      mapped.ANTHROPIC_BASE_URL = configEnv.AUTH_URL;
+    }
+    if (configEnv.AUTH_TOKEN) {
+      mapped.ANTHROPIC_AUTH_TOKEN = configEnv.AUTH_TOKEN;
+    }
+    if (configEnv.AUTH_URL || configEnv.AUTH_TOKEN) {
+      mapped.ANTHROPIC_DEFAULT_HAIKU_MODEL = this.model;
+      mapped.ANTHROPIC_DEFAULT_SONNET_MODEL = this.model;
+      mapped.ANTHROPIC_DEFAULT_OPUS_MODEL = this.model;
+    }
+
+    return { ...process.env, ...mapped, ...configEnv };
   }
 
   async send(messages: ConversationMessage[], signal?: AbortSignal): Promise<string> {
