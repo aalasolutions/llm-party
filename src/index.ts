@@ -132,13 +132,13 @@ async function bootApp(appRoot: string, rendererConfig: Record<string, any>): Pr
 
       const adapter =
         agent.provider === "claude"
-          ? new ClaudeAdapter(agent.name, agent.model)
+          ? new ClaudeAdapter(agent.name, agent.model, humanName)
           : agent.provider === "codex"
-            ? new CodexAdapter(agent.name, agent.model)
+            ? new CodexAdapter(agent.name, agent.model, humanName)
             : agent.provider === "copilot"
-              ? new CopilotAdapter(agent.name, agent.model)
+              ? new CopilotAdapter(agent.name, agent.model, humanName)
               : agent.provider === "custom"
-                ? new CustomAdapter(agent.name, agent.model)
+                ? new CustomAdapter(agent.name, agent.model, humanName)
                 : null;
 
       if (!adapter) {
