@@ -58,7 +58,10 @@ async function bootApp(appRoot: string, rendererConfig: Record<string, any>): Pr
   const availableSkills = await discoverSkills();
   const agentVerifiedSkills = new Map<string, string[]>();
 
-  for (const agent of config.agents) {
+  // Filter out inactive agents
+  const activeAgents = config.agents.filter((a) => a.active !== false);
+
+  for (const agent of activeAgents) {
     if (agent.preloadSkills && agent.preloadSkills.length > 0) {
       const verified: string[] = [];
       const report: string[] = [];
@@ -81,7 +84,7 @@ async function bootApp(appRoot: string, rendererConfig: Record<string, any>): Pr
   };
 
   const adapters = await Promise.all(
-    config.agents.map(async (agent, _index, allAgents) => {
+    activeAgents.map(async (agent, _index, allAgents) => {
       const promptParts = [mergedBase];
 
       if (agent.prompts && agent.prompts.length > 0) {
@@ -151,7 +154,7 @@ async function bootApp(appRoot: string, rendererConfig: Record<string, any>): Pr
     ? config.timeout * 1000
     : 600000;
   const agentTimeouts = Object.fromEntries(
-    config.agents
+    activeAgents
       .filter((agent) => typeof agent.timeout === "number" && agent.timeout > 0)
       .map((agent) => [agent.name, agent.timeout! * 1000])
   );
@@ -159,7 +162,7 @@ async function bootApp(appRoot: string, rendererConfig: Record<string, any>): Pr
   const orchestrator = new Orchestrator(
     adapters,
     humanName,
-    Object.fromEntries(config.agents.map((agent) => [agent.name, agent.tag?.trim() || toTag(agent.name)])),
+    Object.fromEntries(activeAgents.map((agent) => [agent.name, agent.tag?.trim() || toTag(agent.name)])),
     humanTag,
     defaultTimeout,
     agentTimeouts,
@@ -167,13 +170,13 @@ async function bootApp(appRoot: string, rendererConfig: Record<string, any>): Pr
   );
 
   await render(
-    () => App({ orchestrator, maxAutoHops, config }),
+    () => App({ orchestrator, maxAutoHops, config, configPath }),
     rendererConfig
   );
 }
 
-function resolveMaxAutoHops(value: number | "unlimited" | undefined): number {
-  if (value === "unlimited") {
+function resolveMaxAutoHops(value: number | undefined): number {
+  if (typeof value === "number" && value === 0) {
     return Number.POSITIVE_INFINITY;
   }
 
