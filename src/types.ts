@@ -10,7 +10,8 @@ export interface ConversationMessage {
 export interface PersonaConfig {
   name: string;
   tag: string;
-  provider: "claude" | "copilot" | "codex" | "glm";
+  provider: "claude" | "copilot" | "codex" | "custom";
+  cli?: "claude" | "codex" | "copilot";
   model: string;
   prompts?: string[];
   preloadSkills?: string[];
