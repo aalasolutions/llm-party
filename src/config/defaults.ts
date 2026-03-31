@@ -8,8 +8,7 @@ export interface ProviderDef {
   defaultModel: string;
   defaultTag: string;
   detectCommand: string;
-  detectType: "binary" | "alias";
-  env?: Record<string, string>;
+  detectType: "binary";
 }
 
 export const PROVIDERS: ProviderDef[] = [
@@ -42,21 +41,5 @@ export const PROVIDERS: ProviderDef[] = [
     defaultTag: "copilot",
     detectCommand: "copilot",
     detectType: "binary",
-  },
-  {
-    id: "glm",
-    displayName: "GLM",
-    description: "glm alias configured on Claude Code CLI",
-    unavailableHint: "glm shell alias not configured",
-    defaultModel: "glm-5",
-    defaultTag: "glm",
-    detectCommand: "glm",
-    detectType: "alias",
-    env: {
-      ANTHROPIC_BASE_URL: "https://api.z.ai/api/anthropic",
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: "glm-4.5-air",
-      ANTHROPIC_DEFAULT_SONNET_MODEL: "glm-4.5",
-      ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5",
-    },
   },
 ];
