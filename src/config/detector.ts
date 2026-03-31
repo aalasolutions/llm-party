@@ -41,42 +41,15 @@ function detectBinary(command: string): Promise<{ available: boolean; version?: 
   });
 }
 
-function detectAlias(command: string): Promise<{ available: boolean }> {
-  return new Promise((resolve) => {
-    const shell = process.env.SHELL || "/bin/bash";
-    const timer = setTimeout(() => resolve({ available: false }), DETECT_TIMEOUT);
-
-    const proc = spawn(shell, ["-ic", `type ${command}`], {
-      stdio: ["ignore", "pipe", "ignore"],
-      timeout: DETECT_TIMEOUT,
-      detached: true,
-    });
-    proc.unref();
-
-    proc.on("close", (code) => {
-      clearTimeout(timer);
-      resolve({ available: code === 0 });
-    });
-
-    proc.on("error", () => {
-      clearTimeout(timer);
-      resolve({ available: false });
-    });
-  });
-}
-
 export async function detectProviders(): Promise<DetectionResult[]> {
   const results = await Promise.allSettled(
     PROVIDERS.map(async (provider) => {
-      const result =
-        provider.detectType === "alias"
-          ? await detectAlias(provider.detectCommand)
-          : await detectBinary(provider.detectCommand);
+      const result = await detectBinary(provider.detectCommand);
 
       return {
         id: provider.id,
         available: result.available,
-        version: "version" in result ? (result as { version?: string }).version : undefined,
+        version: result.version,
       };
     })
   );
