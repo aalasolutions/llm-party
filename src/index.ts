@@ -7,7 +7,7 @@ import { render } from "@opentui/solid";
 import { ClaudeAdapter } from "./adapters/claude.js";
 import { CodexAdapter } from "./adapters/codex.js";
 import { CopilotAdapter } from "./adapters/copilot.js";
-import { GlmAdapter } from "./adapters/glm.js";
+import { CustomAdapter } from "./adapters/custom.js";
 import { loadConfig, resolveConfigPath, resolveBasePrompt, resolveArtifactsPrompt, resolveObsidianPrompt, discoverSkills, initLlmPartyHome, configExists } from "./config/loader.js";
 import { Orchestrator } from "./orchestrator.js";
 import { App } from "./ui/App.js";
@@ -134,8 +134,8 @@ async function bootApp(appRoot: string, rendererConfig: Record<string, any>): Pr
             ? new CodexAdapter(agent.name, agent.model)
             : agent.provider === "copilot"
               ? new CopilotAdapter(agent.name, agent.model)
-              : agent.provider === "glm"
-                ? new GlmAdapter(agent.name, agent.model)
+              : agent.provider === "custom"
+                ? new CustomAdapter(agent.name, agent.model)
                 : null;
 
       if (!adapter) {
