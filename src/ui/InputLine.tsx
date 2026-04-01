@@ -49,8 +49,8 @@ export function InputLine(props: Props) {
   useKeyboard((key) => {
     if (props.disabled) return;
 
-    // Shift+Enter: insert newline
-    if (key.shift && (key.name === "enter" || key.name === "return")) {
+    // Shift+Enter or Option+Enter: insert newline
+    if ((key.shift || key.option || key.meta) && (key.name === "enter" || key.name === "return")) {
       update(value.slice(0, cursor) + "\n" + value.slice(cursor), cursor + 1);
       return;
     }
