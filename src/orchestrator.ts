@@ -1,4 +1,4 @@
-import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { AgentAdapter } from "./adapters/base.js";
@@ -223,6 +223,32 @@ export class Orchestrator {
 
   async saveHistory(targetPath: string): Promise<void> {
     await writeFile(targetPath, JSON.stringify(this.conversation, null, 2), "utf8");
+  }
+
+  async loadTranscript(sessionId: string): Promise<ConversationMessage[]> {
+    const transcriptFile = path.resolve(".llm-party", "sessions", `transcript-${sessionId}.jsonl`);
+    const content = await readFile(transcriptFile, "utf8");
+    const lines = content.trim().split("\n").filter(Boolean);
+    const messages: ConversationMessage[] = lines.map((line) => JSON.parse(line));
+
+    this.conversation.length = 0;
+    this.conversation.push(...messages);
+
+    const maxId = messages.length > 0 ? Math.max(...messages.map((m) => m.id)) : 0;
+    this.messageId = maxId;
+
+    for (const agent of this.agents.keys()) {
+      this.lastSeenByAgent.set(agent, maxId);
+    }
+
+    this.sessionId = sessionId;
+    this.transcriptPath = transcriptFile;
+
+    return messages;
+  }
+
+  hasMessages(): boolean {
+    return this.conversation.length > 0;
   }
 
   private async sendWithTimeout(
