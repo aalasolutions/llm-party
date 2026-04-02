@@ -19,6 +19,10 @@ async function main(): Promise<void> {
 
   await initLlmPartyHome(appRoot);
 
+  // Parse --resume <sessionId> from CLI args
+  const resumeIndex = process.argv.indexOf("--resume");
+  const resumeSessionId = resumeIndex !== -1 ? process.argv[resumeIndex + 1] : undefined;
+
   const rendererConfig = {
     exitOnCtrlC: false,
     useMouse: true,
@@ -32,17 +36,17 @@ async function main(): Promise<void> {
       () => ConfigWizard({
         isFirstRun: true,
         onComplete: async () => {
-          await bootApp(appRoot, rendererConfig);
+          await bootApp(appRoot, rendererConfig, resumeSessionId);
         },
       }),
       rendererConfig
     );
   } else {
-    await bootApp(appRoot, rendererConfig);
+    await bootApp(appRoot, rendererConfig, resumeSessionId);
   }
 }
 
-async function bootApp(appRoot: string, rendererConfig: Record<string, any>): Promise<void> {
+async function bootApp(appRoot: string, rendererConfig: Record<string, any>, resumeSessionId?: string): Promise<void> {
   const configPath = await resolveConfigPath(appRoot);
   const config = await loadConfig(configPath);
   const humanName = config.humanName?.trim() || "USER";
@@ -170,7 +174,7 @@ async function bootApp(appRoot: string, rendererConfig: Record<string, any>): Pr
   );
 
   await render(
-    () => App({ orchestrator, maxAutoHops, config, configPath }),
+    () => App({ orchestrator, maxAutoHops, config, configPath, resumeSessionId }),
     rendererConfig
   );
 }
