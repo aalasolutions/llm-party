@@ -1,4 +1,4 @@
-import { createSignal, Show } from "solid-js";
+import { createSignal, onMount, Show } from "solid-js";
 import { useKeyboard, useRenderer } from "@opentui/solid";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { spawn } from "node:child_process";
@@ -35,11 +35,12 @@ interface AppProps {
   maxAutoHops: number;
   config: AppConfig;
   configPath: string;
+  resumeSessionId?: string;
 }
 
 export function App(props: AppProps) {
   const renderer = useRenderer();
-  const { messages, agentStates, stickyTarget, dispatching, dispatch, addSystemMessage, clearMessages } =
+  const { messages, agentStates, stickyTarget, dispatching, dispatch, addSystemMessage, addDisplayMessage, clearMessages } =
     useOrchestrator(props.orchestrator, props.maxAutoHops);
   const humanName = props.orchestrator.getHumanName();
   const agents = props.orchestrator.listAgents();
@@ -48,6 +49,35 @@ export function App(props: AppProps) {
   const [freshConfig, setFreshConfig] = createSignal<AppConfig>(props.config);
   const [showAgents, setShowAgents] = createSignal(false);
   const [showInfo, setShowInfo] = createSignal(false);
+
+  // Resume session from --resume CLI flag or /resume command
+  const resumeSession = async (sessionId: string) => {
+    try {
+      const restored = await props.orchestrator.loadTranscript(sessionId);
+      const displayMsgs: import("../types.js").DisplayMessage[] = restored.map((msg) => {
+        const isHuman = msg.from.toUpperCase() === humanName.toUpperCase();
+        const agentInfo = agents.find((a) => a.name.toUpperCase() === msg.from.toUpperCase());
+        return {
+          ...msg,
+          type: isHuman ? "user" as const : "agent" as const,
+          provider: agentInfo?.provider ?? "",
+          tag: agentInfo?.tag ?? "",
+        };
+      });
+      for (const msg of displayMsgs) {
+        addDisplayMessage(msg);
+      }
+      addSystemMessage(`Resumed session ${sessionId} (${restored.length} messages)`);
+    } catch (err) {
+      addSystemMessage(`Failed to resume: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
+  onMount(() => {
+    if (props.resumeSessionId) {
+      resumeSession(props.resumeSessionId);
+    }
+  });
 
   // Signal handlers for clean exit
   process.on("SIGINT", () => renderer.destroy());
@@ -152,6 +182,17 @@ export function App(props: AppProps) {
 
     if (line === "/info") {
       setShowInfo(true);
+      return;
+    }
+
+    if (line.startsWith("/resume")) {
+      const sid = line.replace("/resume", "").trim();
+      if (!sid) { addSystemMessage("Usage: /resume <sessionId>"); return; }
+      if (props.orchestrator.hasMessages()) {
+        addSystemMessage("Resume only works before the first message.");
+        return;
+      }
+      await resumeSession(sid);
       return;
     }
 
