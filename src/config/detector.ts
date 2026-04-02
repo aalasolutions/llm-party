@@ -7,7 +7,7 @@ export interface DetectionResult {
   version?: string;
 }
 
-const DETECT_TIMEOUT = 5000;
+const DETECT_TIMEOUT = 10000;
 
 function detectBinary(command: string): Promise<{ available: boolean; version?: string }> {
   return new Promise((resolve) => {
