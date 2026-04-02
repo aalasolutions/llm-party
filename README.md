@@ -385,6 +385,24 @@ Every run generates a unique session ID and appends messages to a JSONL transcri
 
 File changes made by agents are detected via `git status` after each response. Newly modified files are printed with timestamps.
 
+### Resume a session
+
+Pick up where you left off by passing the session ID:
+
+```bash
+llm-party --resume 20260402-102915-74722-ba956b96
+```
+
+Or use the `/resume` command as your first input in a fresh session:
+
+```
+/resume 20260402-102915-74722-ba956b96
+```
+
+The session ID is shown at startup or via `/session`. Resume loads the full transcript, displays all previous messages, and appends new messages to the same transcript file. Agents see the restored context but treat it as already-read (no duplicate processing).
+
+Resume only works before the first message is sent. Once a conversation has started, resuming another session into it is not allowed.
+
 <br/>
 
 ## Terminal commands
@@ -396,6 +414,7 @@ File changes made by agents are detected via `git status` after each response. N
 | `/info`        | Commands and keyboard shortcuts panel             |
 | `/save <path>` | Export conversation as JSON                       |
 | `/session`     | Show session ID and transcript path               |
+| `/resume <id>` | Resume a previous session (first message only)    |
 | `/changes`     | Show git-modified files                           |
 | `/clear`       | Clear chat display (Ctrl+L also works)            |
 | `/exit`        | Quit (graceful shutdown, all adapters cleaned up) |
