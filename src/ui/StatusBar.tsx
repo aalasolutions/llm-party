@@ -1,49 +1,20 @@
-import { createSignal, createEffect, onCleanup, For, Switch, Match } from "solid-js";
+import { createSignal, For } from "solid-js";
 import type { AgentState } from "./useOrchestrator.js";
-import { SPINNER_FRAMES, ACTIVITY_SPINNERS } from "./constants.js";
+import { SPINNER_FRAMES, ACTIVITY_SPINNERS, SUPERSCRIPT_DIGITS } from "./constants.js";
 import { COLORS } from "./theme.js";
 
 interface Props {
   agents: Array<{ name: string; tag: string; provider: string }>;
   agentStates: Map<string, AgentState>;
   stickyTarget: string[] | undefined;
+  queueCounts?: Map<string, number>;
 }
-// Color cycle: pulses through cyan/blue shades
+
 const PULSE_COLORS = ["#005F87", "#0087AF", "#00AFD7", "#00D7FF", "#5FF", "#00D7FF", "#0087AF"];
 
-function useThinkingAnimation(active: () => boolean): { spinner: () => string; color: () => string } {
-  const [frame, setFrame] = createSignal(0);
-
-  createEffect(() => {
-    if (!active()) { setFrame(0); return; }
-    const interval = setInterval(() => {
-      setFrame((f) => (f + 1) % (SPINNER_FRAMES.length * PULSE_COLORS.length));
-    }, 80);
-    onCleanup(() => clearInterval(interval));
-  });
-
-  return {
-    spinner: () => active() ? SPINNER_FRAMES[frame() % SPINNER_FRAMES.length] : "",
-    color: () => active() ? PULSE_COLORS[frame() % PULSE_COLORS.length] : COLORS.textMuted,
-  };
-}
-
-function useActivityAnimation(active: () => boolean, frames: () => string[]): { spinner: () => string; color: () => string } {
-  const [frame, setFrame] = createSignal(0);
-
-  createEffect(() => {
-    if (!active()) { setFrame(0); return; }
-    const interval = setInterval(() => {
-      setFrame((f) => (f + 1) % (frames().length * PULSE_COLORS.length));
-    }, 80);
-    onCleanup(() => clearInterval(interval));
-  });
-
-  return {
-    spinner: () => active() ? frames()[frame() % frames().length] : "",
-    color: () => active() ? PULSE_COLORS[frame() % PULSE_COLORS.length] : COLORS.textMuted,
-  };
-}
+// Global tick: one interval drives all animations. Never stops, never restarts.
+const [globalTick, setGlobalTick] = createSignal(0);
+setInterval(() => setGlobalTick((t) => t + 1), 80);
 
 export function StatusBar(props: Props) {
   const targetNames = () => props.stickyTarget ?? props.agents.map((a) => a.name);
@@ -63,9 +34,16 @@ export function StatusBar(props: Props) {
           )}</For>
           <text fg={COLORS.textDim}>| /info</text>
         </box>
-        <box flexDirection="row" gap={2}>
-          <For each={props.agents}>{(a) => (
-            <AgentChip name={a.name} state={props.agentStates.get(a.name) ?? "idle"} />
+        <box flexDirection="row">
+          <For each={props.agents}>{(a, i) => (
+            <>
+              <AgentChip
+                name={a.name}
+                getState={() => props.agentStates.get(a.name) ?? "idle"}
+                getQueued={() => props.queueCounts?.get(a.name) ?? 0}
+              />
+              {i() < props.agents.length - 1 ? <text fg={COLORS.textDim}> │ </text> : null}
+            </>
           )}</For>
         </box>
       </box>
@@ -73,19 +51,33 @@ export function StatusBar(props: Props) {
   );
 }
 
-function AgentChip(props: { name: string; state: AgentState }) {
-  const isActive = () => props.state !== "idle" && props.state !== "error";
-  const frames = () => ACTIVITY_SPINNERS[props.state] ?? SPINNER_FRAMES;
-  const { spinner, color } = useActivityAnimation(isActive, frames);
+function toSuperscript(n: number): string {
+  if (n <= 0) return "";
+  return String(n).split("").map((d) => SUPERSCRIPT_DIGITS[parseInt(d, 10)] ?? d).join("");
+}
+
+function AgentChip(props: { name: string; getState: () => AgentState; getQueued: () => number }) {
+  const isActive = () => {
+    const s = props.getState();
+    return s !== "idle" && s !== "error" && s !== "queued";
+  };
+
+  const frames = () => ACTIVITY_SPINNERS[props.getState()] ?? SPINNER_FRAMES;
+  const tick = () => globalTick();
+
+  const spinner = () => isActive() ? frames()[tick() % frames().length] : " ";
+  const pulseColor = () => isActive() ? PULSE_COLORS[tick() % PULSE_COLORS.length] : COLORS.textMuted;
+  const queueSlot = () => props.getQueued() > 0 ? toSuperscript(props.getQueued()) : " ";
+
+  const stateColor = () => {
+    if (props.getState() === "error") return COLORS.error;
+    if (isActive()) return pulseColor();
+    return COLORS.textMuted;
+  };
 
   return (
-    <Switch fallback={<text fg={COLORS.textMuted}>{props.name}</text>}>
-      <Match when={props.state === "error"}>
-        <text fg={COLORS.error}>{props.name} ERR</text>
-      </Match>
-      <Match when={isActive()}>
-        <text fg={color()}>{props.name} {spinner()}</text>
-      </Match>
-    </Switch>
+    <text fg={stateColor()}>
+      {queueSlot()}{props.name} {spinner()}{props.getState() === "error" ? " ERR" : ""}
+    </text>
   );
 }
