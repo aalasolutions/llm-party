@@ -1,6 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { AgentAdapter, formatTranscript } from "./base.js";
-import { ConversationMessage, PersonaConfig } from "../types.js";
+import { ConversationMessage, PersonaConfig, AgentEvent } from "../types.js";
 
 export abstract class ClaudeBaseAdapter implements AgentAdapter {
   public name: string;
@@ -44,15 +44,8 @@ export abstract class ClaudeBaseAdapter implements AgentAdapter {
     return { ...process.env, ...mapped, ...configEnv };
   }
 
-  async send(messages: ConversationMessage[], signal?: AbortSignal): Promise<string> {
-    return await this.querySDK(formatTranscript(messages, this.name, this.humanName), signal);
-  }
-
-  async destroy(): Promise<void> {
-    return;
-  }
-
-  protected async querySDK(transcript: string, signal?: AbortSignal): Promise<string> {
+  async *stream(messages: ConversationMessage[], signal?: AbortSignal): AsyncGenerator<AgentEvent> {
+    const transcript = formatTranscript(messages, this.name, this.humanName);
     const executableOpt = this.claudeExecutable
       ? { pathToClaudeCodeExecutable: this.claudeExecutable }
       : {};
@@ -70,15 +63,19 @@ export abstract class ClaudeBaseAdapter implements AgentAdapter {
       ...executableOpt
     };
 
+    yield { type: "activity", activity: "thinking" };
+
     try {
       for await (const message of query({ prompt: transcript, options })) {
         if (signal?.aborted) {
-          return `[Aborted] ${this.name} was cancelled`;
+          yield { type: "error", message: `[Aborted] ${this.name} was cancelled` };
+          return;
         }
 
+        if (!message || typeof message !== "object") continue;
+
+        // Capture session ID from init message
         if (
-          message &&
-          typeof message === "object" &&
           "type" in message &&
           "subtype" in message &&
           "session_id" in message &&
@@ -89,18 +86,59 @@ export abstract class ClaudeBaseAdapter implements AgentAdapter {
           this.sessionId = message.session_id;
         }
 
-        if (message && typeof message === "object" && "result" in message) {
+        // Extract tool activity from assistant messages with tool_use content blocks
+        if ("type" in message && message.type === "assistant" && "message" in message) {
+          const msg = message.message as any;
+          const blocks = msg?.content;
+          if (Array.isArray(blocks)) {
+            for (const block of blocks) {
+              if (block.type === "tool_use" && block.name) {
+                const toolName = String(block.name).toLowerCase();
+                if (toolName === "read" || toolName === "glob") {
+                  yield { type: "activity", activity: "reading", detail: block.name };
+                } else if (toolName === "write" || toolName === "edit") {
+                  yield { type: "activity", activity: "writing", detail: block.name };
+                } else if (toolName === "bash") {
+                  yield { type: "activity", activity: "running", detail: "shell" };
+                } else if (toolName === "grep" || toolName === "search" || toolName === "websearch") {
+                  yield { type: "activity", activity: "searching", detail: block.name };
+                } else {
+                  yield { type: "activity", activity: "thinking", detail: block.name };
+                }
+              } else if (block.type === "thinking") {
+                yield { type: "activity", activity: "thinking" };
+              }
+            }
+          }
+        }
+
+        // Tool results coming back means agent is processing, back to thinking
+        if ("type" in message && message.type === "user") {
+          yield { type: "activity", activity: "thinking" };
+        }
+
+        // Final result
+        if ("result" in message) {
           const result = message.result;
-          return typeof result === "string" && result.length > 0
+          const text = typeof result === "string" && result.length > 0
             ? result
             : `[No text response from ${this.name}]`;
+          yield { type: "activity", activity: "idle" };
+          yield { type: "response", text };
+          return;
         }
       }
     } catch (err) {
       console.log(`[${this.name}] SDK error:`, err);
-      throw err;
+      yield { type: "error", message: err instanceof Error ? err.message : String(err) };
+      return;
     }
 
-    return `[No text response from ${this.name}]`;
+    yield { type: "activity", activity: "idle" };
+    yield { type: "response", text: `[No text response from ${this.name}]` };
+  }
+
+  async destroy(): Promise<void> {
+    return;
   }
 }
