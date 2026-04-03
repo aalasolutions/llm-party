@@ -22,6 +22,7 @@ interface UseOrchestratorReturn {
   addSystemMessage: (text: string) => void;
   addDisplayMessage: (msg: DisplayMessage) => void;
   clearMessages: () => void;
+  refreshStickyTarget: () => void;
 }
 
 export function useOrchestrator(
@@ -31,7 +32,13 @@ export function useOrchestrator(
   const [agentStates, setAgentStates] = createSignal<Map<string, AgentState>>(
     new Map(orchestrator.listAgents().map((a) => [a.name, "idle" as AgentState]))
   );
-  const [stickyTarget, setStickyTarget] = createSignal<string[] | undefined>(undefined);
+  const [stickyTarget, setStickyTargetSignal] = createSignal<string[] | undefined>(
+    orchestrator.getStickyTarget()
+  );
+  const setStickyTarget = (targets: string[] | undefined) => {
+    setStickyTargetSignal(targets);
+    orchestrator.setStickyTarget(targets);
+  };
   const [dispatching, setDispatching] = createSignal(false);
   const [queueCounts, setQueueCounts] = createSignal<Map<string, number>>(
     new Map(orchestrator.listAgents().map((a) => [a.name, 0]))
@@ -152,7 +159,11 @@ export function useOrchestrator(
     setMessages([]);
   };
 
-  return { messages, agentStates, queueCounts, stickyTarget, dispatching, dispatch, addSystemMessage, addDisplayMessage, clearMessages };
+  const refreshStickyTarget = () => {
+    setStickyTargetSignal(orchestrator.getStickyTarget());
+  };
+
+  return { messages, agentStates, queueCounts, stickyTarget, dispatching, dispatch, addSystemMessage, addDisplayMessage, clearMessages, refreshStickyTarget };
 }
 
 export function getChangedFiles(): Promise<string[]> {
