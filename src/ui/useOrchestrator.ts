@@ -2,9 +2,9 @@ import { createSignal, type Setter } from "solid-js";
 import { execFile } from "node:child_process";
 import { Orchestrator } from "../orchestrator.js";
 import { initProjectFolder } from "../config/loader.js";
-import type { ConversationMessage, DisplayMessage } from "../types.js";
+import type { ConversationMessage, DisplayMessage, AgentActivity } from "../types.js";
 
-export type AgentState = "idle" | "thinking" | "error";
+export type AgentState = AgentActivity;
 
 let systemIdCounter = 0;
 function nextSystemId(): number {
@@ -82,7 +82,7 @@ export function useOrchestrator(
         agentProviders,
         agentTags,
         setMessages,
-        setAgentStates
+        setAgentStates,
       );
     } finally {
       setDispatching(false);
@@ -142,25 +142,36 @@ async function dispatchWithHandoffs(
     );
 
     const batch: ConversationMessage[] = [];
-    await orchestrator.fanOutWithProgress(targets, (msg) => {
-      batch.push(msg);
-      const provider = agentProviders.get(msg.from) ?? "";
-      const tag = agentTags.get(msg.from) ?? "";
-      const display: DisplayMessage = {
-        ...msg,
-        type: "agent",
-        provider,
-        tag,
-      };
-      setMessages((prev) => [...prev, display]);
+    await orchestrator.fanOutWithProgress(
+      targets,
+      (msg) => {
+        batch.push(msg);
+        const provider = agentProviders.get(msg.from) ?? "";
+        const tag = agentTags.get(msg.from) ?? "";
+        const display: DisplayMessage = {
+          ...msg,
+          type: "agent",
+          provider,
+          tag,
+        };
+        setMessages((prev) => [...prev, display]);
 
-      const originalName = nameMap.get(msg.from) ?? msg.from;
-      setAgentStates((prev) => {
-        const next = new Map(prev);
-        next.set(originalName, msg.text.startsWith("[Adapter Error]") ? "error" : "idle");
-        return next;
-      });
-    });
+        const originalName = nameMap.get(msg.from) ?? msg.from;
+        setAgentStates((prev) => {
+          const next = new Map(prev);
+          next.set(originalName, msg.text.startsWith("[Adapter Error]") || msg.text.startsWith("[Error]") ? "error" : "idle");
+          return next;
+        });
+      },
+      (agentName, activity) => {
+        const originalName = nameMap.get(agentName.toUpperCase()) ?? agentName;
+        setAgentStates((prev) => {
+          const next = new Map(prev);
+          next.set(originalName, activity);
+          return next;
+        });
+      }
+    );
 
     setAgentStates((prev) => {
       const next = new Map(prev);
