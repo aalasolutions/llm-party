@@ -123,6 +123,9 @@ export class Orchestrator {
   private transcriptPath: string;
   private readonly defaultTimeout: number;
   private readonly agentTimeouts: Map<string, number>;
+  // TODO: use contextWindowSize for per-agent message truncation.
+  // Opus has 1M tokens, Sonnet 200K, Copilot 200K, GLM 200K.
+  // Long conversations will need truncation based on each agent's context limit.
   private readonly contextWindowSize: number;
   private readonly reminderInterval: number;
   private readonly reminderCursors: Map<string, number> = new Map();
@@ -130,8 +133,10 @@ export class Orchestrator {
   private readonly queueTtlMs: number;
   private readonly maxQueueSize: number;
   private messageId = 0;
+  private stickyTargets: string[] | undefined;
 
   private readonly queueManager = new AgentQueueManager();
+  private manifestSavePromise: Promise<void> = Promise.resolve();
 
   // Callbacks set by the UI layer
   private onMessage: OnMessageCallback = () => {};
@@ -184,6 +189,9 @@ export class Orchestrator {
   getHumanTag(): string { return this.humanTag; }
 
   get dispatching(): boolean { return this.queueManager.anyProcessing; }
+
+  getStickyTarget(): string[] | undefined { return this.stickyTargets; }
+  setStickyTarget(targets: string[] | undefined): void { this.stickyTargets = targets; }
 
   getQueueStatus(): Array<{ name: string; processing: boolean; pending: number }> {
     return this.listAgents().map((a) => ({
@@ -284,6 +292,11 @@ export class Orchestrator {
 
     const historyMaxId = this.messageId;
     const lastSeen = this.lastSeenByAgent.get(agentName) ?? 0;
+
+    // Filter messages the agent hasn't seen yet (excludes its own messages).
+    // lastSeenByAgent is restored from manifest on resume, so each agent
+    // gets exactly the messages it missed, whether from a fresh start or
+    // a resumed session where other agents continued without it.
     const unseen = this.conversation.filter(
       (msg) => msg.id > lastSeen && msg.from.toUpperCase() !== agentName.toUpperCase()
     );
@@ -309,6 +322,9 @@ export class Orchestrator {
     this.conversation.push(response);
     await this.appendTranscript(response);
     this.onMessage(response);
+
+    // Save manifest AFTER response is created and cursor updated
+    await this.saveManifest();
 
     this.queueManager.setProcessing(agentName, false);
 
@@ -467,15 +483,76 @@ export class Orchestrator {
     this.sessionId = sessionId;
     this.transcriptPath = transcriptFile;
 
+    await this.loadManifest();
+
     return messages;
   }
 
   hasMessages(): boolean { return this.conversation.length > 0; }
 
+  // ─── Session Manifest ───────────────────────────────────────
+
+  private manifestPath(): string {
+    const dir = path.dirname(this.transcriptPath);
+    const base = path.basename(this.transcriptPath, ".jsonl");
+    return path.join(dir, `${base}.manifest.json`);
+  }
+
+  private async saveManifest(): Promise<void> {
+    this.manifestSavePromise = this.manifestSavePromise.then(async () => {
+      try {
+        const agents: Record<string, { provider: string; sdkSessionId: string; lastSeenId: number }> = {};
+        for (const [name, adapter] of this.agents) {
+          const sid = adapter.getSdkSessionId();
+          agents[name] = {
+            provider: adapter.provider,
+            sdkSessionId: sid || "",
+            lastSeenId: this.lastSeenByAgent.get(name) ?? 0,
+          };
+        }
+        const manifest = {
+          orchestratorSessionId: this.sessionId,
+          messageId: this.messageId,
+          stickyTarget: this.stickyTargets,
+          agents,
+        };
+        await writeFile(this.manifestPath(), JSON.stringify(manifest, null, 2), "utf8");
+      } catch (err) {
+        console.error("[manifest] write failed:", err);
+      }
+    });
+    return this.manifestSavePromise;
+  }
+
+  private async loadManifest(): Promise<void> {
+    try {
+      const content = await readFile(this.manifestPath(), "utf8");
+      const manifest = JSON.parse(content);
+      if (Array.isArray(manifest.stickyTarget)) {
+        this.stickyTargets = manifest.stickyTarget;
+      }
+      const agentMap = manifest.agents ?? {};
+      for (const [name, data] of Object.entries(agentMap)) {
+        const adapter = this.agents.get(name);
+        const agentData = data as { sdkSessionId?: string; lastSeenId?: number };
+        if (!adapter || !agentData) continue;
+        if (typeof agentData.sdkSessionId === "string" && agentData.sdkSessionId) {
+          adapter.setSdkSessionId(agentData.sdkSessionId);
+        }
+        if (typeof agentData.lastSeenId === "number") {
+          this.lastSeenByAgent.set(name, agentData.lastSeenId);
+        }
+      }
+    } catch (err) {
+      console.error("[manifest] load failed (agents start fresh):", err);
+    }
+  }
+
   // ─── Cleanup ───────────────────────────────────────────────
 
-  abortAll(): void {
+  async abortAll(): Promise<void> {
     this.queueManager.abortAll();
+    await this.saveManifest();
   }
 
   // ─── Internals ─────────────────────────────────────────────
