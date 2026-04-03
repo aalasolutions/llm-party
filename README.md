@@ -40,8 +40,9 @@ No MCP. No master/servant. No window juggling. Just peers at a terminal table.
 | ---------------------- | ------------------------------ | -------------------------------------- |
 | **Architecture** | MCP (master controls servants) | Peer orchestration (you control all)   |
 | **Integration**  | CLI wrapping, output scraping  | Direct SDK adapters                    |
-| **Sessions**     | Fresh each time                | Persistent per provider                |
+| **Sessions**     | Fresh each time                | Persistent per provider, resumable     |
 | **Context**      | Agents are siloed              | Every agent sees the full conversation |
+| **Concurrency**  | Sequential or blocked          | Non-blocking per-agent queues          |
 | **API tokens**   | Separate keys per tool         | Uses your existing CLI auth            |
 
 <br/>
@@ -121,6 +122,10 @@ That's it. No paths, no prompts, no usernames to configure. Just name, tag, prov
 
 Agents can pass the conversation to each other by ending their response with `@next:<tag>`. The orchestrator picks it up and dispatches automatically. Max 15 hops per cycle to prevent loops.
 
+### Non-blocking queue
+
+You can type while agents are working. Each agent has its own queue. If an agent is busy when a new message arrives, the message is queued and processed when the agent finishes. No blocking, no waiting for slow agents to finish before fast ones can respond.
+
 ## **WARNING: FULL AUTONOMY.**
 
 All agents run with full permissions. They can read, write, edit files and execute shell commands with zero approval gates. There is no confirmation step before any action. Run in a disposable environment. You are responsible for any changes, data loss, costs, or side effects. Do not run against production systems.
@@ -159,7 +164,7 @@ All authentication flows through the provider's own CLI. llm-party does not impl
 | ----------------- | ---------------------------------- | -------------------------------------- | -------------------------------------------------- |
 | **Claude**  | `@anthropic-ai/claude-agent-sdk` | Persistent via session ID resume       | Full control                                       |
 | **Codex**   | `@openai/codex-sdk`              | Persistent thread with `run()` turns | Via `developer_instructions` (limitations below) |
-| **Copilot** | `@github/copilot-sdk`            | Persistent via `sendAndWait()`       | Full control                                       |
+| **Copilot** | `@github/copilot-sdk`            | Persistent via session ID resume       | Full control                                       |
 
 ### Custom providers (config-driven)
 
@@ -187,18 +192,22 @@ Terminal (you)
     v
 Orchestrator
     |
+    +-- Agent Queue Manager (per-agent queues, non-blocking dispatch)
+    |
     +-- Agent Registry
     |     +-- Claude  -> ClaudeAdapter  (SDK session, resume by ID)
-    |     +-- Codex   -> CodexAdapter   (SDK thread, persistent turns)
-    |     +-- Copilot -> CopilotAdapter (SDK session, sendAndWait)
+    |     +-- Codex   -> CodexAdapter   (SDK thread, resumeThread by ID)
+    |     +-- Copilot -> CopilotAdapter (SDK session, resumeSession by ID)
     |     +-- Custom  -> CustomAdapter  (routes through native CLI + env override)
     |
     +-- Conversation Log (ordered, all messages, agent-prefixed)
     |
     +-- Transcript Writer (JSONL, append-only, per session)
+    |
+    +-- Session Manifest (per-agent cursors + SDK session IDs, for resume)
 ```
 
-Each agent receives a rolling window of recent messages (configurable, default 16) plus any unseen messages since its last turn. Messages from other agents are included so everyone sees the full multi-party conversation.
+Each agent has its own processing queue. When you send a message, idle agents start immediately while busy agents queue it. You can keep typing while agents work. Each agent receives only unseen messages since its last turn, so no duplicate processing on resume or during concurrent dispatch.
 
 `~/.llm-party/config.json` is your global config. Every agent receives a base system prompt automatically. The `prompts` field in config adds extra prompt files on top of it.
 
@@ -220,7 +229,7 @@ Each agent receives a rolling window of recent messages (configurable, default 1
 |         |                                                                                                                  |
 | ------- | ---------------------------------------------------------------------------------------------------------------- |
 | SDK     | `@openai/codex-sdk`                                                                                            |
-| Session | Persistent thread.`startThread()` creates it, `thread.run()` adds turns to the same conversation.            |
+| Session | Persistent thread. `startThread()` creates it, `resumeThread()` restores it. `thread.run()` adds turns.      |
 | Prompt  | Injected via `developer_instructions` config key. Appended alongside Codex's built-in 13k token system prompt. |
 | Tools   | exec_command, apply_patch, file operations                                                                       |
 
@@ -231,7 +240,7 @@ Each agent receives a rolling window of recent messages (configurable, default 1
 |         |                                                             |
 | ------- | ----------------------------------------------------------- |
 | SDK     | `@github/copilot-sdk`                                     |
-| Session | Persistent via `CopilotClient.createSession()`.           |
+| Session | Persistent via `createSession()` with session ID. Resumable via `resumeSession()`. |
 | Prompt  | Set as `systemMessage` on session creation. Full control. |
 | Tools   | Copilot built-in toolset                                    |
 
@@ -399,7 +408,9 @@ Or use the `/resume` command as your first input in a fresh session:
 /resume 20260402-102915-74722-ba956b96
 ```
 
-The session ID is shown at startup or via `/session`. Resume loads the full transcript, displays all previous messages, and appends new messages to the same transcript file. Agents see the restored context but treat it as already-read (no duplicate processing).
+The session ID is shown at startup or via `/session`. Resume loads the full transcript, restores per-agent SDK sessions (Claude session IDs, Codex thread IDs, Copilot session IDs), and tracks which messages each agent has already seen. Agents pick up exactly where they left off with no duplicate processing.
+
+A `.manifest.json` file alongside each transcript stores the session state: agent cursors, SDK session IDs, sticky targets. This is what makes cross-provider resume possible.
 
 Resume only works before the first message is sent. Once a conversation has started, resuming another session into it is not allowed.
 
