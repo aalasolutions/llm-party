@@ -1,4 +1,4 @@
-import { Codex } from "@openai/codex-sdk";
+import { Codex, type ThreadOptions } from "@openai/codex-sdk";
 import { AgentAdapter, formatTranscript } from "./base.js";
 import { ConversationMessage, PersonaConfig, AgentEvent } from "../types.js";
 
@@ -10,6 +10,8 @@ export class CodexAdapter implements AgentAdapter {
 
   private codex?: Codex;
   private thread?: ReturnType<Codex["startThread"]>;
+  private threadId = "";
+  private threadOptions: ThreadOptions = {};
 
   constructor(name: string, model: string, humanName: string) {
     this.name = name;
@@ -27,13 +29,26 @@ export class CodexAdapter implements AgentAdapter {
       ...(systemPrompt ? { config: { developer_instructions: systemPrompt } } : {}),
     });
 
-    this.thread = this.codex.startThread({
+    this.threadOptions = {
       model: this.model,
       sandboxMode: "danger-full-access",
       workingDirectory: process.cwd(),
       approvalPolicy: "never",
       skipGitRepoCheck: true,
-    });
+    };
+
+    if (this.threadId) {
+      try {
+        this.thread = this.codex.resumeThread(this.threadId, this.threadOptions);
+        return;
+      } catch (err) {
+        console.error(`[${this.name}] resumeThread failed, starting fresh:`, err);
+        this.threadId = "";
+      }
+    }
+
+    this.thread = this.codex.startThread(this.threadOptions);
+    this.threadId = this.thread.id ?? "";
   }
 
   async *stream(messages: ConversationMessage[], signal?: AbortSignal): AsyncGenerator<AgentEvent> {
@@ -85,6 +100,11 @@ export class CodexAdapter implements AgentAdapter {
         ? lastAgentMessage
         : `[No text response from ${this.name}]`;
 
+      // Capture thread ID after first run (id getter is populated after first turn)
+      if (!this.threadId && this.thread?.id) {
+        this.threadId = this.thread.id;
+      }
+
       yield { type: "activity", activity: "idle" };
       yield { type: "response", text };
     } catch (err) {
@@ -95,5 +115,11 @@ export class CodexAdapter implements AgentAdapter {
   async destroy(): Promise<void> {
     this.thread = undefined;
     this.codex = undefined;
+  }
+
+  getSdkSessionId(): string { return this.threadId; }
+  setSdkSessionId(id: string): void {
+    this.threadId = id;
+    // Thread ID is stored; init() will use it on next call via resumeThread
   }
 }
