@@ -32,7 +32,6 @@ function copySelection(renderer: CliRenderer): boolean {
 
 interface AppProps {
   orchestrator: Orchestrator;
-  maxAutoHops: number;
   config: AppConfig;
   configPath: string;
   resumeSessionId?: string;
@@ -40,8 +39,8 @@ interface AppProps {
 
 export function App(props: AppProps) {
   const renderer = useRenderer();
-  const { messages, agentStates, stickyTarget, dispatching, dispatch, addSystemMessage, addDisplayMessage, clearMessages } =
-    useOrchestrator(props.orchestrator, props.maxAutoHops);
+  const { messages, agentStates, queueCounts, stickyTarget, dispatching, dispatch, addSystemMessage, addDisplayMessage, clearMessages } =
+    useOrchestrator(props.orchestrator);
   const humanName = props.orchestrator.getHumanName();
   const agents = props.orchestrator.listAgents();
   let scrollRef: ScrollBoxRenderable | null = null;
@@ -80,18 +79,23 @@ export function App(props: AppProps) {
   });
 
   // Signal handlers for clean exit
-  process.on("SIGINT", () => renderer.destroy());
-  process.on("SIGTERM", () => renderer.destroy());
-  process.on("SIGHUP", () => renderer.destroy());
+  process.on("SIGINT", () => gracefulExit());
+  process.on("SIGTERM", () => gracefulExit());
+  process.on("SIGHUP", () => gracefulExit());
   process.on("SIGTSTP", () => {
     process.once("SIGCONT", () => renderer.resume());
     renderer.suspend();
   });
 
   const gracefulExit = () => {
+    props.orchestrator.abortAll();
     renderer.destroy();
     const adapters = props.orchestrator.getAdapters();
-    Promise.allSettled(adapters.map((a) => a.destroy()));
+    Promise.allSettled(adapters.map((a) => a.destroy())).finally(() => {
+      process.exit(0);
+    });
+    // Force exit after 2s if adapters don't clean up
+    setTimeout(() => process.exit(0), 2000);
   };
 
   useKeyboard((key) => {
@@ -255,13 +259,14 @@ export function App(props: AppProps) {
         agents={agents}
         agentStates={agentStates()}
         stickyTarget={stickyTarget()}
+        queueCounts={queueCounts()}
       />
 
       {/* Input */}
       <InputLine
         humanName={humanName}
         onSubmit={handleSubmit}
-        disabled={dispatching() || showAgents() || showInfo()}
+        disabled={showAgents() || showInfo()}
         disabledMessage={showAgents() ? "" : undefined}
       />
 
