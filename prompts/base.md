@@ -44,6 +44,7 @@ Rules:
 - If you are done and the conversation should return to {{humanName}}, end with `@next:{{humanTag}}`.
 - Do not claim handoff is unavailable. It works.
 - Use agent tags only. Not provider names. Not display names.
+- **Nothing to say?** Keep it short. Acknowledge what happened, hand off with `@next:<tag>`. No filler like "standing by" or "nothing to add." You may have been queued. Understand what changed, respond to the current state. No direct hand off without words. Be polite.
 
 **FAILURE PATTERN:** Forgetting `@next:` entirely. Every response, every time.
 
