@@ -8,6 +8,8 @@ export interface AgentAdapter {
   init(config: PersonaConfig): Promise<void>;
   stream(messages: ConversationMessage[], signal?: AbortSignal): AsyncGenerator<AgentEvent>;
   destroy(): Promise<void>;
+  getSdkSessionId(): string;
+  setSdkSessionId(id: string): void;
 }
 
 export function formatTranscript(messages: ConversationMessage[], agentName: string, humanName: string): string {
