@@ -1,14 +1,12 @@
 # Artifacts
 
-File and folder schemas, templates, and rules for every artifact the system reads and writes.
+Canonical schemas and rules for the files agents read and write.
 
 ---
 
 ## Per-Project: `.llm-party/`
 
-Created when {{humanName}} requests initialization or the orchestrator runs an init command. 
-
-```
+```text
 .llm-party/
   TASKS.md
   memory/
@@ -18,40 +16,30 @@ Created when {{humanName}} requests initialization or the orchestrator runs an i
   skills/
 ```
 
----
-
 ### `.llm-party/TASKS.md`
 
-Task list for this project. Written before work starts. Updated immediately on completion.
-
-**Format:**
 ```markdown
 # Tasks
 
 - [ ] AGENT:@{{agentTag}} | Task description | Date Added
-- [x] AGENT:@{{agentTag}} | Task description | Date Added | Date completed
+- [x] AGENT:@{{agentTag}} | Task description | Date Added | Date Completed
 ```
 
 Rules:
-- Add tasks BEFORE starting work
-- Mark done IMMEDIATELY on completion, not at session end
-
----
+- Add tasks before complex work starts
+- Mark completion immediately
 
 ### `.llm-party/memory/project.md`
 
-Working log for this project. Three zones: Current State (overwritable), Log (append-only), and Decisions (append-only).
-
-**Template:**
 ```markdown
 # Project Memory
 
 ## Current State
 
 Last Updated: YYYY-MM-DD
-Active: [what is being worked on right now]
-Blockers: [anything blocking progress]
-Next: [immediate next action]
+Active: current work
+Blockers: current blockers
+Next: immediate next action
 
 ---
 
@@ -67,19 +55,15 @@ DATE | AGENT:@{{agentTag}} | DECISION | WHY | CONSEQUENCES
 ```
 
 Rules:
-- `Current State` block is overwritten each update. Keep it short. It is a snapshot, not a history.
-- `Log` section is append-only. Never edit or delete past entries.
-- `Decisions` section is append-only. Record decisions that emerge from discussion with {{humanName}}.
-
----
+- `Current State` is a short overwriteable snapshot
+- `Log` is append-only
+- `Decisions` is append-only
+- When logging a fix, decision, or incident, include provenance in `DETAIL` when available, such as session, ticket, PR, host, path, or command.
 
 ### `.llm-party/plans/`
 
-Plans for non-trivial work. One file per plan, named by date and topic.
+Filename: `YYYY-MM-DD-title.md`
 
-**File naming:** `YYYY-MM-DD-title.md`, e.g. `2026-03-30-self-update.md`, `2026-04-01-auth-refactor.md`
-
-**Template:**
 ```markdown
 ---
 date: YYYY-MM-DD
@@ -90,12 +74,11 @@ agents: [@agentTag]
 # Title
 
 ## Context
+Why this plan exists.
 
-Why this plan exists. What triggered it. Business context, technical debt, user request, whatever led here. A future agent reading this cold should understand the motivation without needing the conversation history.
+## Phase 1: Description
 
-## Phase 1: Description (safe, scoped)
-
-### Area (e.g., Backend, Frontend, Config)
+### Area
 
 **Files to change:**
 
@@ -103,54 +86,45 @@ Why this plan exists. What triggered it. Business context, technical debt, user 
 |------|-------|--------|
 | `path/to/file.ts` | 10, 37 | What changes and why |
 
-- [ ] Task description
+- [ ] Task
   - [ ] Subtask if needed
-  - [ ] Subtask if needed
-- [ ] Another task
+- [ ] Task
 
-## Phase 2: Description (depends on Phase 1)
+## Phase 2: Description
 
-- [ ] Task description
-  - [ ] Subtask if needed
+- [ ] Task
 
 ## Open Questions
 
-- [ ] Anything unresolved that needs {{humanName}}'s input before proceeding
-- [ ] Decisions that block the next phase
+- [ ] Question
 ```
 
 Rules:
-- Every plan MUST have YAML frontmatter (date, status, agents).
-- Share the plan with {{humanName}} before executing.
-- Update checkboxes and status as work progresses.
-- Phase the work. Each phase independently shippable.
-- Include file paths and line numbers when known.
-- One plan per concern. Plans are never deleted.
-
----
+- Frontmatter is required
+- Share the plan before execution
+- Update status and checkboxes as work progresses
+- One plan per concern
 
 ### `.llm-party/skills/`
 
-Project-local skills. Each skill is a folder containing a `SKILL.md` file:
-
-```
+```text
 skills/
   skill-name/
-    SKILL.md          # Required. YAML frontmatter (name, description) + markdown instructions.
-    scripts/           # Optional. Executable code (Python/JS) for deterministic tasks.
-    references/        # Optional. Docs loaded into context as needed.
-    assets/            # Optional. Templates, icons, fonts used in output.
+    SKILL.md
+    scripts/
+    references/
+    assets/
 ```
 
-Agents read relevant skills before executing unfamiliar workflows. Keep `SKILL.md` concise (under 5,000 words) and offload detail into `references/`.
+Rules:
+- `SKILL.md` is required
+- Keep `SKILL.md` concise and move bulk detail to `references/`
 
 ---
 
 ## Global: `~/.llm-party/`
 
-Created when {{humanName}} requests initialization or the orchestrator runs an init command. Shared across all projects.
-
-```
+```text
 ~/.llm-party/
   network/
     projects.yml
@@ -163,39 +137,28 @@ Created when {{humanName}} requests initialization or the orchestrator runs an i
       SKILL.md
 ```
 
-Additional folders/files (`config.json` etc.) may be added by the orchestrator code. Their schemas are managed in code, not in this prompt.
-
----
-
 ### `~/.llm-party/network/projects.yml`
 
-Living map of all projects. Written by agents when a project-level milestone or cross-project decision happens.
-
-**Schema:**
 ```yaml
 projects:
   - id: unique-slug
     name: Human-readable name
     root_path: /absolute/path/to/project
-    tags: [web, api, cli, creative, horror-story, chicken recipe]
-    stack: [typescript, node, postgres, salt, vineger]
+    tags: [web, api, cli]
+    stack: [typescript, node]
     history:
       - date: YYYY-MM-DD
         agent: agentTag
-        event: 25 words max describing what happened
+        event: short milestone or decision
 ```
 
 Rules:
-- `history` is append-only within each project entry
-- Write here when a decision affects multiple projects or a milestone is reached
-
----
+- `history` is append-only
+- Use it for milestones and cross-project decisions
+- Keep it breadcrumb-sized and include a short reference when useful, such as a session, ticket, PR, host, or memory file.
 
 ### `~/.llm-party/network/mind-map/`
 
-Obsidian-compatible folder. Each discovery is its own `.md` file with frontmatter and wikilinks. Users can open this folder in Obsidian to visualize the knowledge graph.
-
-**Note format:**
 ```markdown
 ---
 discovered: YYYY-MM-DD
@@ -206,29 +169,23 @@ tags: [relevant, tags]
 
 # Descriptive Title
 
-What the constraint or discovery is.
+Constraint, discovery, or lesson.
 
 ## Workaround
-How to work around it.
+How to avoid or handle it.
 
 ## Related
-- [[other-discovery-filename]]
+- [[other-discovery]]
 ```
 
-**File naming:** slugified title, e.g. `react-19-useeffect.md`, `figma-autolayout-nesting.md`.
-
 Rules:
-- Write here when a tool or resource constraint is discovered that would trap a future session
-- Include workaround. A constraint without a workaround is incomplete.
-- Use `[[wikilinks]]` to connect related discoveries
-
----
+- Each discovery gets its own file
+- Add a matching entry to `INDEX.md`
+- Include a workaround whenever the note describes a constraint
+- Include where proof lives when useful, such as a session, ticket, PR, host, path, or project memory entry.
 
 ### `~/.llm-party/agents/{{agentTag}}.md`
 
-Per-agent self memory. Not shared between agents. Each agent owns its own file.
-
-**Template:**
 ```markdown
 # {{agentName}} Self Memory
 
@@ -236,8 +193,7 @@ DATE | PROJECT PATH | RULE | EXAMPLE
 ```
 
 Rules:
-- Write IMMEDIATELY when a correction is received or a non-obvious approach is confirmed
-- Per-agent: one file per agent, named `{{agentTag}}.md`
+- One file per agent, named `{{agentTag}}.md`
 - Append-only
+- Write corrections and validated non-obvious approaches immediately
 
----
