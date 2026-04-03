@@ -1,4 +1,4 @@
-import { createSignal, type Setter } from "solid-js";
+import { createSignal } from "solid-js";
 import { execFile } from "node:child_process";
 import { Orchestrator } from "../orchestrator.js";
 import { initProjectFolder } from "../config/loader.js";
@@ -15,6 +15,7 @@ function nextSystemId(): number {
 interface UseOrchestratorReturn {
   messages: () => DisplayMessage[];
   agentStates: () => Map<string, AgentState>;
+  queueCounts: () => Map<string, number>;
   stickyTarget: () => string[] | undefined;
   dispatching: () => boolean;
   dispatch: (line: string) => Promise<void>;
@@ -25,7 +26,6 @@ interface UseOrchestratorReturn {
 
 export function useOrchestrator(
   orchestrator: Orchestrator,
-  maxAutoHops: number
 ): UseOrchestratorReturn {
   const [messages, setMessages] = createSignal<DisplayMessage[]>([]);
   const [agentStates, setAgentStates] = createSignal<Map<string, AgentState>>(
@@ -33,9 +33,61 @@ export function useOrchestrator(
   );
   const [stickyTarget, setStickyTarget] = createSignal<string[] | undefined>(undefined);
   const [dispatching, setDispatching] = createSignal(false);
+  const [queueCounts, setQueueCounts] = createSignal<Map<string, number>>(
+    new Map(orchestrator.listAgents().map((a) => [a.name, 0]))
+  );
   let projectFolderReady = false;
-  let agentProviders = new Map(orchestrator.listAgents().map((a) => [a.name.toUpperCase(), a.provider]));
-  let agentTags = new Map(orchestrator.listAgents().map((a) => [a.name.toUpperCase(), a.tag]));
+  const agentProviders = new Map(orchestrator.listAgents().map((a) => [a.name.toUpperCase(), a.provider]));
+  const agentTagsMap = new Map(orchestrator.listAgents().map((a) => [a.name.toUpperCase(), a.tag]));
+  const nameMap = new Map(orchestrator.listAgents().map((a) => [a.name.toUpperCase(), a.name]));
+
+  const updateQueueCounts = () => {
+    const status = orchestrator.getQueueStatus();
+    setQueueCounts(new Map(status.map((s) => [s.name, s.pending])));
+  };
+
+  // Wire orchestrator callbacks
+  orchestrator.setCallbacks(
+    // onMessage: agent response arrived
+    (msg: ConversationMessage) => {
+      const provider = agentProviders.get(msg.from) ?? "";
+      const tag = agentTagsMap.get(msg.from) ?? "";
+      const display: DisplayMessage = {
+        ...msg,
+        type: "agent",
+        provider,
+        tag,
+      };
+      setMessages((prev) => [...prev, display]);
+
+      const originalName = nameMap.get(msg.from) ?? msg.from;
+      setAgentStates((prev) => {
+        const next = new Map(prev);
+        const isErr = msg.text.startsWith("[Adapter Error]") || msg.text.startsWith("[Error]") || msg.text.startsWith("[Timeout]");
+        next.set(originalName, isErr ? "error" : "idle");
+        return next;
+      });
+
+      setDispatching(orchestrator.dispatching);
+      updateQueueCounts();
+    },
+    // onActivity: agent state changed
+    (agentName: string, activity: AgentActivity) => {
+      const originalName = nameMap.get(agentName.toUpperCase()) ?? agentName;
+      setAgentStates((prev) => {
+        const next = new Map(prev);
+        next.set(originalName, activity);
+        return next;
+      });
+      setDispatching(orchestrator.dispatching);
+      updateQueueCounts();
+    },
+    // onSystem: system message
+    (text: string) => {
+      addSystemMessage(text);
+      updateQueueCounts();
+    }
+  );
 
   const dispatch = async (line: string) => {
     if (!line.trim()) return;
@@ -56,7 +108,9 @@ export function useOrchestrator(
       setStickyTarget(explicitTargets);
     }
 
-    const targets = explicitTargets ?? stickyTarget();
+    const targets = explicitTargets ?? stickyTarget() ?? Array.from(
+      orchestrator.listAgents().map((a) => a.name)
+    );
 
     if (!projectFolderReady) {
       await initProjectFolder(process.cwd());
@@ -74,19 +128,8 @@ export function useOrchestrator(
 
     setDispatching(true);
 
-    try {
-      await dispatchWithHandoffs(
-        orchestrator,
-        targets,
-        maxAutoHops,
-        agentProviders,
-        agentTags,
-        setMessages,
-        setAgentStates,
-      );
-    } finally {
-      setDispatching(false);
-    }
+    // Fire-and-forget: dispatch to targets, don't await
+    orchestrator.dispatchToTargets(targets);
   };
 
   const addSystemMessage = (text: string) => {
@@ -109,119 +152,7 @@ export function useOrchestrator(
     setMessages([]);
   };
 
-  return { messages, agentStates, stickyTarget, dispatching, dispatch, addSystemMessage, addDisplayMessage, clearMessages };
-}
-
-async function dispatchWithHandoffs(
-  orchestrator: Orchestrator,
-  initialTargets: string[] | undefined,
-  maxHops: number,
-  agentProviders: Map<string, string>,
-  agentTags: Map<string, string>,
-  setMessages: Setter<DisplayMessage[]>,
-  setAgentStates: Setter<Map<string, AgentState>>
-): Promise<void> {
-  let targets = initialTargets;
-  let hops = 0;
-
-  while (true) {
-    const targetNames = targets ?? Array.from(
-      orchestrator.listAgents().map((a) => a.name)
-    );
-
-    setAgentStates((prev) => {
-      const next = new Map(prev);
-      for (const name of targetNames) {
-        next.set(name, "thinking");
-      }
-      return next;
-    });
-
-    const nameMap = new Map(
-      orchestrator.listAgents().map((a) => [a.name.toUpperCase(), a.name])
-    );
-
-    const batch: ConversationMessage[] = [];
-    await orchestrator.fanOutWithProgress(
-      targets,
-      (msg) => {
-        batch.push(msg);
-        const provider = agentProviders.get(msg.from) ?? "";
-        const tag = agentTags.get(msg.from) ?? "";
-        const display: DisplayMessage = {
-          ...msg,
-          type: "agent",
-          provider,
-          tag,
-        };
-        setMessages((prev) => [...prev, display]);
-
-        const originalName = nameMap.get(msg.from) ?? msg.from;
-        setAgentStates((prev) => {
-          const next = new Map(prev);
-          next.set(originalName, msg.text.startsWith("[Adapter Error]") || msg.text.startsWith("[Error]") ? "error" : "idle");
-          return next;
-        });
-      },
-      (agentName, activity) => {
-        const originalName = nameMap.get(agentName.toUpperCase()) ?? agentName;
-        setAgentStates((prev) => {
-          const next = new Map(prev);
-          next.set(originalName, activity);
-          return next;
-        });
-      }
-    );
-
-    setAgentStates((prev) => {
-      const next = new Map(prev);
-      for (const name of targetNames) {
-        if (next.get(name) === "thinking") {
-          next.set(name, "idle");
-        }
-      }
-      return next;
-    });
-
-    const nextSelectors = extractNextSelectors(batch);
-    if (nextSelectors.length === 0) return;
-
-    const humanTag = orchestrator.getHumanTag().toLowerCase();
-    const humanName = orchestrator.getHumanName().toLowerCase();
-    const agentSelectors = nextSelectors.filter((s) => {
-      const n = s.toLowerCase();
-      return n !== humanTag && n !== humanName;
-    });
-    if (agentSelectors.length === 0) return;
-
-    const resolvedTargets = Array.from(
-      new Set(agentSelectors.flatMap((s) => orchestrator.resolveTargets(s)))
-    );
-    if (resolvedTargets.length === 0) return;
-
-    hops += 1;
-    if (Number.isFinite(maxHops) && hops >= maxHops) {
-      const systemMsg: DisplayMessage = {
-        id: nextSystemId(),
-        from: "SYSTEM",
-        text: `Stopped auto-handoff after ${maxHops} hops.`,
-        createdAt: new Date().toISOString(),
-        type: "system",
-      };
-      setMessages((prev) => [...prev, systemMsg]);
-      return;
-    }
-
-    const handoffMsg: DisplayMessage = {
-      id: nextSystemId(),
-      from: "SYSTEM",
-      text: `Auto handoff via @next to ${resolvedTargets.join(", ")}`,
-      createdAt: new Date().toISOString(),
-      type: "system",
-    };
-    setMessages((prev) => [...prev, handoffMsg]);
-    targets = resolvedTargets;
-  }
+  return { messages, agentStates, queueCounts, stickyTarget, dispatching, dispatch, addSystemMessage, addDisplayMessage, clearMessages };
 }
 
 export function getChangedFiles(): Promise<string[]> {
@@ -232,22 +163,6 @@ export function getChangedFiles(): Promise<string[]> {
       resolve(Array.from(new Set(files)));
     });
   });
-}
-
-function extractNextSelectors(messages: ConversationMessage[]): string[] {
-  const selectors: string[] = [];
-  for (const msg of messages) {
-    const regex = /@next\s*:\s*([A-Za-z0-9_-]+)/gi;
-    let match: RegExpExecArray | null = null;
-    while ((match = regex.exec(msg.text)) !== null) {
-      selectors.push(match[1]);
-    }
-    const controlMatch = msg.text.match(/@control[\s\S]*?next\s*:\s*([A-Za-z0-9_-]+)[\s\S]*?@end/i);
-    if (controlMatch?.[1]) {
-      selectors.push(controlMatch[1]);
-    }
-  }
-  return selectors;
 }
 
 function parseRouting(line: string): { mentions: string[]; raw: string } {
