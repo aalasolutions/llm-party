@@ -1,6 +1,6 @@
 import { Codex } from "@openai/codex-sdk";
 import { AgentAdapter, formatTranscript } from "./base.js";
-import { ConversationMessage, PersonaConfig } from "../types.js";
+import { ConversationMessage, PersonaConfig, AgentEvent } from "../types.js";
 
 export class CodexAdapter implements AgentAdapter {
   public name: string;
@@ -36,21 +36,60 @@ export class CodexAdapter implements AgentAdapter {
     });
   }
 
-  async send(messages: ConversationMessage[], signal?: AbortSignal): Promise<string> {
+  async *stream(messages: ConversationMessage[], signal?: AbortSignal): AsyncGenerator<AgentEvent> {
     if (!this.thread) {
-      return "[Codex thread not initialized]";
+      yield { type: "error", message: "[Codex thread not initialized]" };
+      return;
     }
     if (signal?.aborted) {
-      return "[Aborted] Codex was cancelled";
+      yield { type: "error", message: "[Aborted] Codex was cancelled" };
+      return;
     }
 
-    const turn = await this.thread.run(formatTranscript(messages, this.name, this.humanName));
+    yield { type: "activity", activity: "thinking" };
 
-    if (turn.finalResponse && turn.finalResponse.length > 0) {
-      return turn.finalResponse;
+    try {
+      const result = await this.thread.runStreamed(formatTranscript(messages, this.name, this.humanName));
+      let lastAgentMessage = "";
+
+      for await (const event of result.events) {
+        if (signal?.aborted) {
+          yield { type: "error", message: "[Aborted] Codex was cancelled" };
+          return;
+        }
+
+        if (event.type === "item.started" || event.type === "item.updated") {
+          const item = event.item as any;
+          if (item.type === "command_execution") {
+            yield { type: "activity", activity: "running", detail: item.command };
+          } else if (item.type === "file_change") {
+            yield { type: "activity", activity: "writing", detail: "file changes" };
+          } else if (item.type === "reasoning") {
+            yield { type: "activity", activity: "thinking", detail: "reasoning" };
+          } else if (item.type === "web_search") {
+            yield { type: "activity", activity: "searching", detail: item.query };
+          } else if (item.type === "mcp_tool_call") {
+            yield { type: "activity", activity: "running", detail: `${item.server}:${item.tool}` };
+          }
+        }
+
+        if (event.type === "item.completed") {
+          const item = event.item as any;
+          if (item.type === "agent_message" && typeof item.text === "string") {
+            lastAgentMessage = item.text;
+          }
+        }
+      }
+
+      const text = lastAgentMessage.length > 0
+        ? lastAgentMessage
+        : `[No text response from ${this.name}]`;
+
+      yield { type: "activity", activity: "idle" };
+      yield { type: "response", text };
+    } catch (err) {
+      yield { type: "error", message: err instanceof Error ? err.message : String(err) };
     }
-
-    return "[No text response from Codex]";
   }
 
   async destroy(): Promise<void> {
