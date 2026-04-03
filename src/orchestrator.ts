@@ -2,7 +2,7 @@ import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { AgentAdapter } from "./adapters/base.js";
-import { ConversationMessage } from "./types.js";
+import { ConversationMessage, AgentActivity } from "./types.js";
 import { toTag } from "./utils.js";
 
 export interface OrchestratorOptions {
@@ -140,12 +140,13 @@ export class Orchestrator {
   }
 
   async fanOut(targetAgentNames?: string[]): Promise<ConversationMessage[]> {
-    return this.fanOutWithProgress(targetAgentNames, () => {});
+    return this.fanOutWithProgress(targetAgentNames, () => {}, () => {});
   }
 
   async fanOutWithProgress(
     targetAgentNames: string[] | undefined,
-    onMessage: (message: ConversationMessage) => void
+    onMessage: (message: ConversationMessage) => void,
+    onActivity: (agentName: string, activity: AgentActivity, detail?: string) => void
   ): Promise<ConversationMessage[]> {
     const requestedTargets = targetAgentNames && targetAgentNames.length > 0
       ? targetAgentNames
@@ -155,6 +156,7 @@ export class Orchestrator {
       .filter((agent): agent is AgentAdapter => Boolean(agent));
 
     const historyMaxId = this.messageId;
+    const results: ConversationMessage[] = [];
 
     const settled = await Promise.allSettled(
       targets.map(async (agent) => {
@@ -169,7 +171,7 @@ export class Orchestrator {
         }
 
         const inputMessages = this.buildInputForAgent(agent.name, unseen);
-        const responseText = await this.sendWithTimeout(agent, inputMessages, this.timeoutFor(agent.name));
+        const responseText = await this.streamWithTimeout(agent, inputMessages, this.timeoutFor(agent.name), onActivity);
         const response: ConversationMessage = {
           id: ++this.messageId,
           from: agent.name.toUpperCase(),
@@ -184,7 +186,6 @@ export class Orchestrator {
       })
     );
 
-    const results: ConversationMessage[] = [];
     for (let idx = 0; idx < settled.length; idx++) {
       const item = settled[idx];
       if (item.status === "fulfilled") {
@@ -195,6 +196,7 @@ export class Orchestrator {
       }
 
       const agent = targets[idx];
+      onActivity(agent.name, "error");
       const response: ConversationMessage = {
         id: ++this.messageId,
         from: agent.name.toUpperCase(),
@@ -251,27 +253,63 @@ export class Orchestrator {
     return this.conversation.length > 0;
   }
 
-  private async sendWithTimeout(
+  private async streamWithTimeout(
     agent: AgentAdapter,
     messages: ConversationMessage[],
-    timeoutMs: number
+    timeoutMs: number,
+    onActivity: (agentName: string, activity: AgentActivity, detail?: string) => void
   ): Promise<string> {
     const controller = new AbortController();
     let timer: NodeJS.Timeout | undefined;
-    const timeoutPromise = new Promise<string>((resolve) => {
-      timer = setTimeout(() => {
-        controller.abort();
-        resolve(`[Timeout] ${agent.name} exceeded ${Math.floor(timeoutMs / 1000)}s`);
-      }, timeoutMs);
-    });
+    let resolved = false;
 
-    try {
-      return await Promise.race([agent.send(messages, controller.signal), timeoutPromise]);
-    } finally {
-      if (timer) {
-        clearTimeout(timer);
-      }
-    }
+    return new Promise<string>((resolve) => {
+      timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          controller.abort();
+          onActivity(agent.name, "error", "timeout");
+          resolve(`[Timeout] ${agent.name} exceeded ${Math.floor(timeoutMs / 1000)}s`);
+        }
+      }, timeoutMs);
+
+      (async () => {
+        try {
+          for await (const event of agent.stream(messages, controller.signal)) {
+            if (resolved) return;
+
+            if (event.type === "activity") {
+              onActivity(agent.name, event.activity, event.detail);
+            } else if (event.type === "response") {
+              resolved = true;
+              if (timer) clearTimeout(timer);
+              onActivity(agent.name, "idle");
+              resolve(event.text);
+              return;
+            } else if (event.type === "error") {
+              resolved = true;
+              if (timer) clearTimeout(timer);
+              onActivity(agent.name, "error");
+              resolve(`[Error] ${agent.name}: ${event.message}`);
+              return;
+            }
+          }
+
+          if (!resolved) {
+            resolved = true;
+            if (timer) clearTimeout(timer);
+            resolve(`[No text response from ${agent.name}]`);
+          }
+        } catch (err) {
+          if (!resolved) {
+            resolved = true;
+            if (timer) clearTimeout(timer);
+            onActivity(agent.name, "error");
+            resolve(`[Error] ${agent.name}: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+      })();
+    });
   }
 
   private timeoutFor(agentName: string): number {
