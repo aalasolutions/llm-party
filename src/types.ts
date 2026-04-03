@@ -41,6 +41,7 @@ export interface DisplayMessage extends ConversationMessage {
 
 export type AgentActivity =
   | "idle"
+  | "queued"
   | "thinking"
   | "reading"
   | "writing"
@@ -52,3 +53,10 @@ export type AgentEvent =
   | { type: "activity"; activity: AgentActivity; detail?: string }
   | { type: "response"; text: string }
   | { type: "error"; message: string };
+
+export interface QueuedMessage {
+  from: string;
+  text: string;
+  queuedAt: string;
+  chainHops: number;
+}
