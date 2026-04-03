@@ -141,4 +141,12 @@ export abstract class ClaudeBaseAdapter implements AgentAdapter {
   async destroy(): Promise<void> {
     return;
   }
+
+  getSdkSessionId(): string {
+    return this.sessionId;
+  }
+
+  setSdkSessionId(id: string): void {
+    this.sessionId = id;
+  }
 }
