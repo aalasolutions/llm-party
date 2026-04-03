@@ -38,3 +38,17 @@ export interface DisplayMessage extends ConversationMessage {
   provider?: string;
   tag?: string;
 }
+
+export type AgentActivity =
+  | "idle"
+  | "thinking"
+  | "reading"
+  | "writing"
+  | "running"
+  | "searching"
+  | "error";
+
+export type AgentEvent =
+  | { type: "activity"; activity: AgentActivity; detail?: string }
+  | { type: "response"; text: string }
+  | { type: "error"; message: string };
