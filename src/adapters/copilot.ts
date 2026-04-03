@@ -13,6 +13,7 @@ export class CopilotAdapter implements AgentAdapter {
   private systemPrompt = "";
   private cliPath?: string;
   private timeout = 600000;
+  private copilotSessionId = "";
 
   constructor(name: string, model: string, humanName: string) {
     this.name = name;
@@ -156,19 +157,25 @@ export class CopilotAdapter implements AgentAdapter {
 
   async destroy(): Promise<void> {
     if (this.session) {
-      await this.session.disconnect();
+      try { await this.session.disconnect(); } catch (err) { console.error(`[${this.name}] disconnect:`, err); }
     }
     if (this.client) {
-      await this.client.stop();
+      try { await this.client.stop(); } catch (err) { console.error(`[${this.name}] stop:`, err); }
     }
+  }
+
+  getSdkSessionId(): string { return this.copilotSessionId; }
+  setSdkSessionId(id: string): void {
+    this.copilotSessionId = id;
+    // Session ID is stored; createSession() will use it on next init() or stream()
   }
 
   private async createSession(): Promise<void> {
     if (this.session) {
-      try { await this.session.disconnect(); } catch { /* stale session */ }
+      try { await this.session.disconnect(); } catch (err) { console.error(`[${this.name}] stale session disconnect:`, err); }
     }
     if (this.client) {
-      try { await this.client.stop(); } catch { /* stale client */ }
+      try { await this.client.stop(); } catch (err) { console.error(`[${this.name}] stale client stop:`, err); }
     }
 
     process.env.NODE_NO_WARNINGS = "1";
@@ -179,10 +186,28 @@ export class CopilotAdapter implements AgentAdapter {
 
     await this.client.start();
 
+    // Resume existing session or create new one
+    if (this.copilotSessionId) {
+      try {
+        this.session = await (this.client as any).resumeSession(this.copilotSessionId, {
+          model: this.model,
+          systemMessage: { content: this.systemPrompt },
+          onPermissionRequest: approveAll,
+        });
+        return;
+      } catch (err) {
+        console.error(`[${this.name}] resumeSession failed, creating new:`, err);
+        this.copilotSessionId = "";
+      }
+    }
+
+    const sessionId = `llm-party-${this.name}-${Date.now()}`;
     this.session = await this.client.createSession({
+      sessionId,
       model: this.model,
       systemMessage: { content: this.systemPrompt },
       onPermissionRequest: approveAll,
     });
+    this.copilotSessionId = sessionId;
   }
 }
