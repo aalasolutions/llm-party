@@ -170,11 +170,11 @@ async function bootApp(appRoot: string, rendererConfig: Record<string, any>, res
     humanTag,
     defaultTimeout,
     agentTimeouts,
-    { reminderInterval: config.reminderInterval }
+    { reminderInterval: config.reminderInterval, maxAutoHops }
   );
 
   await render(
-    () => App({ orchestrator, maxAutoHops, config, configPath, resumeSessionId }),
+    () => App({ orchestrator, config, configPath, resumeSessionId }),
     rendererConfig
   );
 }
