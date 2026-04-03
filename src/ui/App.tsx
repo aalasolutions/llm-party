@@ -39,7 +39,7 @@ interface AppProps {
 
 export function App(props: AppProps) {
   const renderer = useRenderer();
-  const { messages, agentStates, queueCounts, stickyTarget, dispatching, dispatch, addSystemMessage, addDisplayMessage, clearMessages } =
+  const { messages, agentStates, queueCounts, stickyTarget, dispatching, dispatch, addSystemMessage, addDisplayMessage, clearMessages, refreshStickyTarget } =
     useOrchestrator(props.orchestrator);
   const humanName = props.orchestrator.getHumanName();
   const agents = props.orchestrator.listAgents();
@@ -66,6 +66,7 @@ export function App(props: AppProps) {
       for (const msg of displayMsgs) {
         addDisplayMessage(msg);
       }
+      refreshStickyTarget();
       addSystemMessage(`Resumed session ${sessionId} (${restored.length} messages)`);
     } catch (err) {
       addSystemMessage(`Failed to resume: ${err instanceof Error ? err.message : String(err)}`);
@@ -87,8 +88,8 @@ export function App(props: AppProps) {
     renderer.suspend();
   });
 
-  const gracefulExit = () => {
-    props.orchestrator.abortAll();
+  const gracefulExit = async () => {
+    await props.orchestrator.abortAll();
     renderer.destroy();
     const adapters = props.orchestrator.getAdapters();
     Promise.allSettled(adapters.map((a) => a.destroy())).finally(() => {
