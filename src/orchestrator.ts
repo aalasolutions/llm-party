@@ -2,12 +2,15 @@ import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { AgentAdapter } from "./adapters/base.js";
-import { ConversationMessage, AgentActivity } from "./types.js";
+import { ConversationMessage, AgentActivity, QueuedMessage } from "./types.js";
 import { toTag } from "./utils.js";
 
 export interface OrchestratorOptions {
   contextWindowSize?: number;
   reminderInterval?: number;
+  maxAutoHops?: number;
+  queueTtlMs?: number;
+  maxQueueSize?: number;
 }
 
 const DEFAULT_REMINDERS = [
@@ -21,6 +24,93 @@ const DEFAULT_REMINDERS = [
   "Self-memory check: did you receive a correction this session? Write it to your agent file now.",
   "Global awareness: if this work affects other projects, write a one-liner to projects.yml history.",
 ];
+
+const QUEUE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_QUEUE_SIZE = 20;
+
+// ─── Agent Queue Manager ───────────────────────────────────────
+
+interface AgentQueue {
+  processing: boolean;
+  pending: QueuedMessage[];
+  controller?: AbortController;
+}
+
+class AgentQueueManager {
+  private queues: Map<string, AgentQueue> = new Map();
+
+  register(agentName: string): void {
+    this.queues.set(agentName, { processing: false, pending: [] });
+  }
+
+  enqueue(agentName: string, message: QueuedMessage, maxSize = MAX_QUEUE_SIZE): boolean {
+    const queue = this.queues.get(agentName);
+    if (!queue) return false;
+    if (queue.pending.length >= maxSize) {
+      queue.pending.shift(); // drop oldest
+    }
+    queue.pending.push(message);
+    return true;
+  }
+
+  drain(agentName: string, ttlMs = QUEUE_TTL_MS): QueuedMessage[] {
+    const queue = this.queues.get(agentName);
+    if (!queue) return [];
+    const now = Date.now();
+    const valid = queue.pending.filter((m) => now - new Date(m.queuedAt).getTime() < ttlMs);
+    queue.pending = [];
+    return valid;
+  }
+
+  isProcessing(agentName: string): boolean {
+    return this.queues.get(agentName)?.processing ?? false;
+  }
+
+  setProcessing(agentName: string, value: boolean): void {
+    const queue = this.queues.get(agentName);
+    if (queue) queue.processing = value;
+  }
+
+  hasPending(agentName: string): boolean {
+    return (this.queues.get(agentName)?.pending.length ?? 0) > 0;
+  }
+
+  pendingCount(agentName: string): number {
+    return this.queues.get(agentName)?.pending.length ?? 0;
+  }
+
+  get anyProcessing(): boolean {
+    for (const q of this.queues.values()) {
+      if (q.processing) return true;
+    }
+    return false;
+  }
+
+  setController(agentName: string, controller: AbortController): void {
+    const queue = this.queues.get(agentName);
+    if (queue) queue.controller = controller;
+  }
+
+  abortAll(): void {
+    for (const q of this.queues.values()) {
+      q.controller?.abort();
+      q.pending = [];
+    }
+  }
+
+  clearAll(): void {
+    for (const q of this.queues.values()) {
+      q.pending = [];
+      q.processing = false;
+    }
+  }
+}
+
+// ─── Orchestrator ──────────────────────────────────────────────
+
+export type OnMessageCallback = (message: ConversationMessage) => void;
+export type OnActivityCallback = (agentName: string, activity: AgentActivity, detail?: string) => void;
+export type OnSystemCallback = (text: string) => void;
 
 export class Orchestrator {
   private readonly agents: Map<string, AgentAdapter>;
@@ -36,7 +126,17 @@ export class Orchestrator {
   private readonly contextWindowSize: number;
   private readonly reminderInterval: number;
   private readonly reminderCursors: Map<string, number> = new Map();
+  private readonly maxAutoHops: number;
+  private readonly queueTtlMs: number;
+  private readonly maxQueueSize: number;
   private messageId = 0;
+
+  private readonly queueManager = new AgentQueueManager();
+
+  // Callbacks set by the UI layer
+  private onMessage: OnMessageCallback = () => {};
+  private onActivity: OnActivityCallback = () => {};
+  private onSystem: OnSystemCallback = () => {};
 
   constructor(
     agents: AgentAdapter[],
@@ -57,27 +157,40 @@ export class Orchestrator {
     this.agentTimeouts = new Map(Object.entries(agentTimeouts ?? {}));
     this.contextWindowSize = options?.contextWindowSize ?? 16;
     this.reminderInterval = options?.reminderInterval ?? 8;
+    this.maxAutoHops = options?.maxAutoHops ?? 15;
+    this.queueTtlMs = options?.queueTtlMs ?? QUEUE_TTL_MS;
+    this.maxQueueSize = options?.maxQueueSize ?? MAX_QUEUE_SIZE;
     this.sessionId = createSessionId();
     this.transcriptPath = path.resolve(".llm-party", "sessions", `transcript-${this.sessionId}.jsonl`);
     for (const agent of agents) {
       this.lastSeenByAgent.set(agent.name, 0);
+      this.queueManager.register(agent.name);
     }
   }
 
-  getSessionId(): string {
-    return this.sessionId;
+  // ─── Callbacks ─────────────────────────────────────────────
+
+  setCallbacks(onMessage: OnMessageCallback, onActivity: OnActivityCallback, onSystem: OnSystemCallback): void {
+    this.onMessage = onMessage;
+    this.onActivity = onActivity;
+    this.onSystem = onSystem;
   }
 
-  getTranscriptPath(): string {
-    return this.transcriptPath;
-  }
+  // ─── Getters ───────────────────────────────────────────────
 
-  getHumanName(): string {
-    return this.humanName;
-  }
+  getSessionId(): string { return this.sessionId; }
+  getTranscriptPath(): string { return this.transcriptPath; }
+  getHumanName(): string { return this.humanName; }
+  getHumanTag(): string { return this.humanTag; }
 
-  getHumanTag(): string {
-    return this.humanTag;
+  get dispatching(): boolean { return this.queueManager.anyProcessing; }
+
+  getQueueStatus(): Array<{ name: string; processing: boolean; pending: number }> {
+    return this.listAgents().map((a) => ({
+      name: a.name,
+      processing: this.queueManager.isProcessing(a.name),
+      pending: this.queueManager.pendingCount(a.name),
+    }));
   }
 
   clearConversation(): void {
@@ -86,13 +199,12 @@ export class Orchestrator {
     for (const agent of this.agents.keys()) {
       this.lastSeenByAgent.set(agent, 0);
     }
+    this.queueManager.clearAll();
     this.sessionId = createSessionId();
     this.transcriptPath = path.resolve(".llm-party", "sessions", `transcript-${this.sessionId}.jsonl`);
   }
 
-  getAdapters(): AgentAdapter[] {
-    return Array.from(this.agents.values());
-  }
+  getAdapters(): AgentAdapter[] { return Array.from(this.agents.values()); }
 
   listAgents(): Array<{ name: string; tag: string; provider: string; model: string }> {
     return Array.from(this.agents.values()).map((agent) => ({
@@ -102,6 +214,8 @@ export class Orchestrator {
       model: agent.model
     }));
   }
+
+  // ─── Message Handling ──────────────────────────────────────
 
   addUserMessage(text: string): ConversationMessage {
     const message: ConversationMessage = {
@@ -114,9 +228,7 @@ export class Orchestrator {
     return message;
   }
 
-  getHistory(): ConversationMessage[] {
-    return [...this.conversation];
-  }
+  getHistory(): ConversationMessage[] { return [...this.conversation]; }
 
   resolveTargets(selector: string): string[] {
     const normalized = selector.trim().toLowerCase();
@@ -130,88 +242,197 @@ export class Orchestrator {
         return agent.name.toLowerCase() === normalized || tag.toLowerCase() === normalized;
       })
       .map((agent) => agent.name);
-    if (byName.length > 0) {
-      return byName;
-    }
+    if (byName.length > 0) return byName;
 
     return Array.from(this.agents.values())
       .filter((agent) => agent.provider.toLowerCase() === normalized)
       .map((agent) => agent.name);
   }
 
-  async fanOut(targetAgentNames?: string[]): Promise<ConversationMessage[]> {
-    return this.fanOutWithProgress(targetAgentNames, () => {}, () => {});
+  // ─── Non-Blocking Dispatch ─────────────────────────────────
+
+  dispatchToTargets(targetAgentNames: string[], chainHops = 0): void {
+    for (const name of targetAgentNames) {
+      const agent = this.agents.get(name);
+      if (!agent) continue;
+
+      if (this.queueManager.isProcessing(name)) {
+        // Agent busy: queue the message. The latest user message is already in conversation.
+        // We queue a marker so the agent knows to check for new unseen messages when it finishes.
+        this.queueManager.enqueue(name, {
+          from: "dispatch",
+          text: "",
+          queuedAt: new Date().toISOString(),
+          chainHops,
+        }, this.maxQueueSize);
+        // Don't change activity state - agent is already active (thinking/reading/etc)
+        // Just notify about the queue event so the UI updates the count
+        this.onSystem(`Queued for ${name} (busy, ${this.queueManager.pendingCount(name)} pending)`);
+      } else {
+        // Agent idle: start processing immediately
+        this.processAgent(name, chainHops);
+      }
+    }
   }
 
-  async fanOutWithProgress(
-    targetAgentNames: string[] | undefined,
-    onMessage: (message: ConversationMessage) => void,
-    onActivity: (agentName: string, activity: AgentActivity, detail?: string) => void
-  ): Promise<ConversationMessage[]> {
-    const requestedTargets = targetAgentNames && targetAgentNames.length > 0
-      ? targetAgentNames
-      : Array.from(this.agents.keys());
-    const targets = requestedTargets
-      .map((name) => this.agents.get(name))
-      .filter((agent): agent is AgentAdapter => Boolean(agent));
+  private async processAgent(agentName: string, chainHops: number): Promise<void> {
+    const agent = this.agents.get(agentName);
+    if (!agent) return;
+
+    this.queueManager.setProcessing(agentName, true);
+    this.onActivity(agentName, "thinking");
 
     const historyMaxId = this.messageId;
-    const results: ConversationMessage[] = [];
-
-    const settled = await Promise.allSettled(
-      targets.map(async (agent) => {
-        const lastSeen = this.lastSeenByAgent.get(agent.name) ?? 0;
-        const unseen = this.conversation.filter(
-          (msg) => msg.id > lastSeen && msg.from.toUpperCase() !== agent.name.toUpperCase()
-        );
-
-        if (unseen.length === 0) {
-          this.lastSeenByAgent.set(agent.name, historyMaxId);
-          return null;
-        }
-
-        const inputMessages = this.buildInputForAgent(agent.name, unseen);
-        const responseText = await this.streamWithTimeout(agent, inputMessages, this.timeoutFor(agent.name), onActivity);
-        const response: ConversationMessage = {
-          id: ++this.messageId,
-          from: agent.name.toUpperCase(),
-          text: responseText,
-          createdAt: new Date().toISOString()
-        };
-        this.lastSeenByAgent.set(agent.name, historyMaxId);
-        this.conversation.push(response);
-        await this.appendTranscript(response);
-        onMessage(response);
-        return response;
-      })
+    const lastSeen = this.lastSeenByAgent.get(agentName) ?? 0;
+    const unseen = this.conversation.filter(
+      (msg) => msg.id > lastSeen && msg.from.toUpperCase() !== agentName.toUpperCase()
     );
 
-    for (let idx = 0; idx < settled.length; idx++) {
-      const item = settled[idx];
-      if (item.status === "fulfilled") {
-        if (item.value) {
-          results.push(item.value);
-        }
-        continue;
-      }
-
-      const agent = targets[idx];
-      onActivity(agent.name, "error");
-      const response: ConversationMessage = {
-        id: ++this.messageId,
-        from: agent.name.toUpperCase(),
-        text: `[Adapter Error] ${item.reason instanceof Error ? item.reason.message : String(item.reason)}`,
-        createdAt: new Date().toISOString()
-      };
-      this.lastSeenByAgent.set(agent.name, historyMaxId);
-      this.conversation.push(response);
-      await this.appendTranscript(response);
-      onMessage(response);
-      results.push(response);
+    if (unseen.length === 0) {
+      this.lastSeenByAgent.set(agentName, historyMaxId);
+      this.queueManager.setProcessing(agentName, false);
+      this.onActivity(agentName, "idle");
+      this.drainQueue(agentName);
+      return;
     }
 
-    return results;
+    const inputMessages = this.buildInputForAgent(agentName, unseen);
+    const responseText = await this.streamWithTimeout(agentName, agent, inputMessages, this.timeoutFor(agentName));
+
+    const response: ConversationMessage = {
+      id: ++this.messageId,
+      from: agentName.toUpperCase(),
+      text: responseText,
+      createdAt: new Date().toISOString()
+    };
+    this.lastSeenByAgent.set(agentName, historyMaxId);
+    this.conversation.push(response);
+    await this.appendTranscript(response);
+    this.onMessage(response);
+
+    this.queueManager.setProcessing(agentName, false);
+
+    // Process @next handoffs
+    const isError = responseText.startsWith("[Timeout]") || responseText.startsWith("[Error]") || responseText.startsWith("[Adapter Error]");
+    if (!isError) {
+      this.processHandoffs(response, chainHops);
+    }
+
+    // Drain own queue
+    this.drainQueue(agentName);
   }
+
+  private processHandoffs(response: ConversationMessage, currentHops: number): void {
+    const selectors = extractNextSelectors([response]);
+    if (selectors.length === 0) return;
+
+    const humanTag = this.humanTag.toLowerCase();
+    const humanName = this.humanName.toLowerCase();
+    const agentSelectors = selectors.filter((s) => {
+      const n = s.toLowerCase();
+      return n !== humanTag && n !== humanName;
+    });
+    if (agentSelectors.length === 0) return;
+
+    const resolvedTargets = Array.from(
+      new Set(agentSelectors.flatMap((s) => this.resolveTargets(s)))
+    );
+    if (resolvedTargets.length === 0) return;
+
+    const nextHops = currentHops + 1;
+    if (nextHops >= this.maxAutoHops) {
+      this.onSystem(`Stopped auto-handoff after ${this.maxAutoHops} hops.`);
+      return;
+    }
+
+    this.onSystem(`Auto handoff via @next to ${resolvedTargets.join(", ")}`);
+    this.dispatchToTargets(resolvedTargets, nextHops);
+  }
+
+  private drainQueue(agentName: string): void {
+    if (!this.queueManager.hasPending(agentName)) {
+      this.onActivity(agentName, "idle");
+      return;
+    }
+
+    const pending = this.queueManager.drain(agentName, this.queueTtlMs);
+    if (pending.length === 0) {
+      this.onActivity(agentName, "idle");
+      return;
+    }
+
+    // Take the max chainHops from the queued messages
+    const maxHops = Math.max(...pending.map((m) => m.chainHops));
+    if (maxHops >= this.maxAutoHops) {
+      this.onSystem(`Stopped auto-handoff for ${agentName} after ${this.maxAutoHops} hops.`);
+      this.onActivity(agentName, "idle");
+      return;
+    }
+
+    // Process again with merged context (unseen messages will include everything new)
+    this.processAgent(agentName, maxHops);
+  }
+
+  private async streamWithTimeout(
+    agentName: string,
+    agent: AgentAdapter,
+    messages: ConversationMessage[],
+    timeoutMs: number,
+  ): Promise<string> {
+    const controller = new AbortController();
+    this.queueManager.setController(agentName, controller);
+    let timer: NodeJS.Timeout | undefined;
+    let resolved = false;
+
+    return new Promise<string>((resolve) => {
+      timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          controller.abort();
+          this.onActivity(agentName, "error", "timeout");
+          resolve(`[Timeout] ${agentName} exceeded ${Math.floor(timeoutMs / 1000)}s`);
+        }
+      }, timeoutMs);
+
+      (async () => {
+        try {
+          for await (const event of agent.stream(messages, controller.signal)) {
+            if (resolved) return;
+
+            if (event.type === "activity") {
+              this.onActivity(agentName, event.activity, event.detail);
+            } else if (event.type === "response") {
+              resolved = true;
+              if (timer) clearTimeout(timer);
+              resolve(event.text);
+              return;
+            } else if (event.type === "error") {
+              resolved = true;
+              if (timer) clearTimeout(timer);
+              this.onActivity(agentName, "error");
+              resolve(`[Error] ${agentName}: ${event.message}`);
+              return;
+            }
+          }
+
+          if (!resolved) {
+            resolved = true;
+            if (timer) clearTimeout(timer);
+            resolve(`[No text response from ${agentName}]`);
+          }
+        } catch (err) {
+          if (!resolved) {
+            resolved = true;
+            if (timer) clearTimeout(timer);
+            this.onActivity(agentName, "error");
+            resolve(`[Error] ${agentName}: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+      })();
+    });
+  }
+
+  // ─── Transcript ────────────────────────────────────────────
 
   async appendTranscript(message: ConversationMessage): Promise<void> {
     try {
@@ -249,68 +470,15 @@ export class Orchestrator {
     return messages;
   }
 
-  hasMessages(): boolean {
-    return this.conversation.length > 0;
+  hasMessages(): boolean { return this.conversation.length > 0; }
+
+  // ─── Cleanup ───────────────────────────────────────────────
+
+  abortAll(): void {
+    this.queueManager.abortAll();
   }
 
-  private async streamWithTimeout(
-    agent: AgentAdapter,
-    messages: ConversationMessage[],
-    timeoutMs: number,
-    onActivity: (agentName: string, activity: AgentActivity, detail?: string) => void
-  ): Promise<string> {
-    const controller = new AbortController();
-    let timer: NodeJS.Timeout | undefined;
-    let resolved = false;
-
-    return new Promise<string>((resolve) => {
-      timer = setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          controller.abort();
-          onActivity(agent.name, "error", "timeout");
-          resolve(`[Timeout] ${agent.name} exceeded ${Math.floor(timeoutMs / 1000)}s`);
-        }
-      }, timeoutMs);
-
-      (async () => {
-        try {
-          for await (const event of agent.stream(messages, controller.signal)) {
-            if (resolved) return;
-
-            if (event.type === "activity") {
-              onActivity(agent.name, event.activity, event.detail);
-            } else if (event.type === "response") {
-              resolved = true;
-              if (timer) clearTimeout(timer);
-              onActivity(agent.name, "idle");
-              resolve(event.text);
-              return;
-            } else if (event.type === "error") {
-              resolved = true;
-              if (timer) clearTimeout(timer);
-              onActivity(agent.name, "error");
-              resolve(`[Error] ${agent.name}: ${event.message}`);
-              return;
-            }
-          }
-
-          if (!resolved) {
-            resolved = true;
-            if (timer) clearTimeout(timer);
-            resolve(`[No text response from ${agent.name}]`);
-          }
-        } catch (err) {
-          if (!resolved) {
-            resolved = true;
-            if (timer) clearTimeout(timer);
-            onActivity(agent.name, "error");
-            resolve(`[Error] ${agent.name}: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
-      })();
-    });
-  }
+  // ─── Internals ─────────────────────────────────────────────
 
   private timeoutFor(agentName: string): number {
     return this.agentTimeouts.get(agentName) ?? this.defaultTimeout;
@@ -344,8 +512,26 @@ export class Orchestrator {
   }
 }
 
+// ─── Helpers ─────────────────────────────────────────────────
+
 function createSessionId(): string {
   const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
   const rand = randomBytes(4).toString("hex");
   return `${timestamp}-${process.pid}-${rand}`;
+}
+
+export function extractNextSelectors(messages: ConversationMessage[]): string[] {
+  const selectors: string[] = [];
+  for (const msg of messages) {
+    const regex = /@next\s*:\s*([A-Za-z0-9_-]+)/gi;
+    let match: RegExpExecArray | null = null;
+    while ((match = regex.exec(msg.text)) !== null) {
+      selectors.push(match[1]);
+    }
+    const controlMatch = msg.text.match(/@control[\s\S]*?next\s*:\s*([A-Za-z0-9_-]+)[\s\S]*?@end/i);
+    if (controlMatch?.[1]) {
+      selectors.push(controlMatch[1]);
+    }
+  }
+  return selectors;
 }
