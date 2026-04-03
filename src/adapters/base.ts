@@ -1,4 +1,4 @@
-import { ConversationMessage, PersonaConfig } from "../types.js";
+import { ConversationMessage, PersonaConfig, AgentEvent } from "../types.js";
 
 export interface AgentAdapter {
   name: string;
@@ -6,7 +6,7 @@ export interface AgentAdapter {
   model: string;
   humanName: string;
   init(config: PersonaConfig): Promise<void>;
-  send(messages: ConversationMessage[], signal?: AbortSignal): Promise<string>;
+  stream(messages: ConversationMessage[], signal?: AbortSignal): AsyncGenerator<AgentEvent>;
   destroy(): Promise<void>;
 }
 
