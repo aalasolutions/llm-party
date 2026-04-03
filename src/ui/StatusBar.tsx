@@ -1,6 +1,6 @@
 import { createSignal, createEffect, onCleanup, For, Switch, Match } from "solid-js";
 import type { AgentState } from "./useOrchestrator.js";
-import { SPINNER_FRAMES } from "./constants.js";
+import { SPINNER_FRAMES, ACTIVITY_SPINNERS } from "./constants.js";
 import { COLORS } from "./theme.js";
 
 interface Props {
@@ -24,6 +24,23 @@ function useThinkingAnimation(active: () => boolean): { spinner: () => string; c
 
   return {
     spinner: () => active() ? SPINNER_FRAMES[frame() % SPINNER_FRAMES.length] : "",
+    color: () => active() ? PULSE_COLORS[frame() % PULSE_COLORS.length] : COLORS.textMuted,
+  };
+}
+
+function useActivityAnimation(active: () => boolean, frames: () => string[]): { spinner: () => string; color: () => string } {
+  const [frame, setFrame] = createSignal(0);
+
+  createEffect(() => {
+    if (!active()) { setFrame(0); return; }
+    const interval = setInterval(() => {
+      setFrame((f) => (f + 1) % (frames().length * PULSE_COLORS.length));
+    }, 80);
+    onCleanup(() => clearInterval(interval));
+  });
+
+  return {
+    spinner: () => active() ? frames()[frame() % frames().length] : "",
     color: () => active() ? PULSE_COLORS[frame() % PULSE_COLORS.length] : COLORS.textMuted,
   };
 }
@@ -57,14 +74,16 @@ export function StatusBar(props: Props) {
 }
 
 function AgentChip(props: { name: string; state: AgentState }) {
-  const { spinner, color } = useThinkingAnimation(() => props.state === "thinking");
+  const isActive = () => props.state !== "idle" && props.state !== "error";
+  const frames = () => ACTIVITY_SPINNERS[props.state] ?? SPINNER_FRAMES;
+  const { spinner, color } = useActivityAnimation(isActive, frames);
 
   return (
     <Switch fallback={<text fg={COLORS.textMuted}>{props.name}</text>}>
       <Match when={props.state === "error"}>
         <text fg={COLORS.error}>{props.name} ERR</text>
       </Match>
-      <Match when={props.state === "thinking"}>
+      <Match when={isActive()}>
         <text fg={color()}>{props.name} {spinner()}</text>
       </Match>
     </Switch>

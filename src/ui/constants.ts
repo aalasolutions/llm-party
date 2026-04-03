@@ -1,1 +1,10 @@
-export const SPINNER_FRAMES = ["⠋", "⠙", "⠚", "⠞", "⠖", "⠦", "⠴", "⠲", "⠳", "⠓"];
+export const SPINNER_FRAMES = "⠋⠙⠚⠞⠖⠦⠴⠲⠳⠓".split("");
+
+export const ACTIVITY_SPINNERS: Record<string, string[]> = {
+  thinking_bkp: "✳✴✶✵✷✸✹✺".split(""),
+  thinking: "  ..ooOO@@@@@@*".split(""),
+  writing: "▏▎▍▌▋▊▉█▉▊▋▌▍▎".split(""),
+  reading: ["⠁", "⠉", "⠋", "⠛", "⠟", "⠿", "⡿", "⣿"],
+  running: [" ", "░", "▒", "▓", "█"],
+  searching: "◐◓◑◒".split(""),
+};
