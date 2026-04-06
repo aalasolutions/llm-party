@@ -10,6 +10,7 @@ import { InputLine } from "./InputLine.js";
 import { ConfigWizard } from "./ConfigWizard.js";
 import { AgentsPanel } from "./AgentsPanel.js";
 import { InfoPanel } from "./InfoPanel.js";
+import { CancelPanel } from "./CancelPanel.js";
 import { COLORS } from "./theme.js";
 import { loadConfig } from "../config/loader.js";
 import type { AppConfig } from "../types.js";
@@ -48,6 +49,7 @@ export function App(props: AppProps) {
   const [freshConfig, setFreshConfig] = createSignal<AppConfig>(props.config);
   const [showAgents, setShowAgents] = createSignal(false);
   const [showInfo, setShowInfo] = createSignal(false);
+  const [showCancel, setShowCancel] = createSignal(false);
 
   // Resume session from --resume CLI flag or /resume command
   const resumeSession = async (sessionId: string) => {
@@ -106,7 +108,19 @@ export function App(props: AppProps) {
       return;
     }
 
-    if (showAgents()) return;
+    if (showAgents() || showCancel() || showInfo()) return;
+
+    // Esc: open cancel panel if any agents are active
+    if (key.name === "escape") {
+      const active = agents.filter((a) => {
+        const state = agentStates().get(a.name);
+        return state && state !== "idle" && state !== "error";
+      }).map((a) => a.name);
+      if (active.length > 0) {
+        setShowCancel(true);
+      }
+      return;
+    }
 
     // Ctrl+C: copy selection if any, otherwise exit
     if (key.ctrl && key.name === "c") {
@@ -267,8 +281,8 @@ export function App(props: AppProps) {
       <InputLine
         humanName={humanName}
         onSubmit={handleSubmit}
-        disabled={showAgents() || showInfo()}
-        disabledMessage={showAgents() ? "" : undefined}
+        disabled={showAgents() || showInfo() || showCancel()}
+        disabledMessage={showAgents() || showCancel() ? "" : undefined}
       />
 
       {/* Agents overlay */}
@@ -286,6 +300,21 @@ export function App(props: AppProps) {
         <InfoPanel
           sessionId={props.orchestrator.getSessionId()}
           onClose={() => setShowInfo(false)}
+        />
+      )}
+      {showCancel() && (
+        <CancelPanel
+          activeAgents={agents.filter((a) => {
+            const state = agentStates().get(a.name);
+            return state && state !== "idle" && state !== "error";
+          }).map((a) => a.name)}
+          onCancel={(names) => {
+            props.orchestrator.cancelAgents(names);
+            const label = names.length === agents.length ? "all agents" : names.join(", ");
+            addSystemMessage(`Cancelled ${label}`);
+            setShowCancel(false);
+          }}
+          onClose={() => setShowCancel(false)}
         />
       )}
     </box>
