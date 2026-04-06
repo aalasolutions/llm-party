@@ -19,16 +19,9 @@
 
 A peer orchestrator that puts **Claude**, **Codex**, **Copilot**, and any Claude-compatible API (GLM, Ollama, etc.) in the same terminal. You talk, they listen. They talk to each other. Nobody is the boss except you.
 
-```
-YOU > @claude review this function
-[CLAUDE] The error handling on line 42 swallows exceptions silently...
-
-YOU > @codex fix what claude found
-[CODEX] Fixed. Wrapped in try/catch with proper logging. See diff below.
-
-YOU > @copilot write tests for the fix
-[COPILOT] Added 3 test cases covering the happy path and both error branches.
-```
+<p align="center">
+  <img src="https://llm-party.party/llm-party-preview.gif" alt="llm-party demo" width="720" />
+</p>
 
 No MCP. No master/servant. No window juggling. Just peers at a terminal table.
 
