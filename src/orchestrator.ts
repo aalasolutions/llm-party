@@ -91,6 +91,25 @@ class AgentQueueManager {
     if (queue) queue.controller = controller;
   }
 
+  private cancelled: Set<string> = new Set();
+
+  abortAgent(agentName: string): void {
+    const queue = this.queues.get(agentName);
+    if (!queue) return;
+    this.cancelled.add(agentName);
+    queue.controller?.abort();
+    queue.pending = [];
+    queue.processing = false;
+  }
+
+  wasCancelled(agentName: string): boolean {
+    return this.cancelled.has(agentName);
+  }
+
+  clearCancelled(agentName: string): void {
+    this.cancelled.delete(agentName);
+  }
+
   abortAll(): void {
     for (const q of this.queues.values()) {
       q.controller?.abort();
@@ -287,6 +306,7 @@ export class Orchestrator {
     const agent = this.agents.get(agentName);
     if (!agent) return;
 
+    this.queueManager.clearCancelled(agentName);
     this.queueManager.setProcessing(agentName, true);
     this.onActivity(agentName, "thinking");
 
@@ -311,6 +331,14 @@ export class Orchestrator {
 
     const inputMessages = this.buildInputForAgent(agentName, unseen);
     const responseText = await this.streamWithTimeout(agentName, agent, inputMessages, this.timeoutFor(agentName));
+
+    // Agent was cancelled while streaming: suppress response, don't pollute conversation
+    if (this.queueManager.wasCancelled(agentName)) {
+      this.lastSeenByAgent.set(agentName, historyMaxId);
+      this.queueManager.setProcessing(agentName, false);
+      this.onActivity(agentName, "idle");
+      return;
+    }
 
     const response: ConversationMessage = {
       id: ++this.messageId,
@@ -549,6 +577,13 @@ export class Orchestrator {
   }
 
   // ─── Cleanup ───────────────────────────────────────────────
+
+  cancelAgents(names: string[]): void {
+    for (const name of names) {
+      this.queueManager.abortAgent(name);
+      this.onActivity(name, "idle");
+    }
+  }
 
   async abortAll(): Promise<void> {
     this.queueManager.abortAll();
