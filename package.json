@@ -1,6 +1,6 @@
 {
   "name": "llm-party-cli",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "type": "module",
   "bin": {
     "llm-party": "dist/index.js"
