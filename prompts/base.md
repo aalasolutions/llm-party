@@ -180,6 +180,10 @@ Write a plan BEFORE executing non-trivial work (multi-file changes, architectura
 
 **Where:** `.llm-party/plans/YYYY-MM-DD-title.md`. Format defined in Artifacts section below.
 
+**Hard rule:** Never save plans or artifacts outside the project working directory. All project artifacts must live in this repo under `.llm-party/`.
+
+If you accidentally created a plan outside the repo (any temp/workspace/session directory, home directory, or tool-managed cache), immediately copy it into `.llm-party/plans/` and delete the external copy.
+
 ---
 
 ## Skills
@@ -273,15 +277,19 @@ The mind-map is the **shared brain between all agents**. Write AS YOU GO. Not at
 
 **The test:** *"If I woke up tomorrow with no conversation history, what would I need to know?"*
 
-**Write when:** something broke, a constraint was discovered, a preference was identified, progress was made, a cross-project dependency was found, a failed approach should not be repeated, or a cold-boot agent would be lost without this context.
+**Write when:** a plan is discussed, a feature is designed, something broke, a constraint was discovered, a preference was identified, progress was made, a cross-project dependency was found, a failed approach should not be repeated, or a cold-boot agent would be lost without this context. If you participated in a planning discussion and nothing was written to mind-map, you failed.
 
 **One agent writes, all agents read.** First to observe writes it. Others skip.
 
-**INDEX.md is the entry point.** Add a one-liner to `~/.llm-party/network/mind-map/INDEX.md` for every new entry. Include the complete project path. Treat INDEX.md as a vault home referencing all project memory files. If the project's mind-map file does not exist, create one.
+**Folder-per-project structure.** Each project gets its own folder under `~/.llm-party/network/mind-map/`, named after the project's `id` in `projects.yml`. Create the folder and its `INDEX.md` if they don't exist.
+
+**Two levels of INDEX.** Root `INDEX.md` links to project indexes. Project `INDEX.md` links to entries within that project. Update both when adding entries.
+
+**Cross-project links** include the project folder: `[[lila/widget-migration]]`, `[[ai-orchestration/sidebar-data-pipe]]`.
 
 **Does NOT belong:** project-specific detail (goes in `project.md`), code documentation, session transcripts, anything derivable from source code.
 
-**Keep entries compressed.** One line of what, one line of why. Not paragraphs.
+**Keep entries compressed.** One line of what, one line of why. Not paragraphs. See Artifacts section for full schema.
 
 ### Self Memory
 

@@ -159,11 +159,41 @@ Rules:
 
 ### `~/.llm-party/network/mind-map/`
 
+```text
+mind-map/
+  INDEX.md                          # root index, links to project indexes
+  {project-id}/                     # folder per project, matches projects.yml id
+    INDEX.md                        # project-level index
+    discovery-name.md               # one file per discovery
+```
+
+#### Root `INDEX.md`
+
+```markdown
+# Living Memory Neural Network
+
+## Projects
+- [[{project-id}/INDEX]] - one-line project summary
+```
+
+#### Project `INDEX.md`
+
+```markdown
+# {project-name}
+Path: /absolute/path/to/project
+
+## Entries
+- [[{project-id}/discovery-name]] - one-line summary
+```
+
+#### Discovery file
+
 ```markdown
 ---
 discovered: YYYY-MM-DD
 agent: agentTag
-projects: [project-slug]
+project: {project-id}
+path: /absolute/path/to/project
 tags: [relevant, tags]
 ---
 
@@ -175,12 +205,17 @@ Constraint, discovery, or lesson.
 How to avoid or handle it.
 
 ## Related
-- [[other-discovery]]
+- [[{project-id}/other-discovery]]
+- [[{other-project-id}/cross-project-link]]
 ```
 
 Rules:
-- Each discovery gets its own file
-- Add a matching entry to `INDEX.md`
+- One folder per project, named after the `id` field in `projects.yml`
+- Each discovery gets its own file inside the project folder
+- Add a matching entry to the project `INDEX.md`
+- Add the project to root `INDEX.md` if not already listed
+- Cross-project wikilinks include the project folder: `[[lila/widget-migration]]`
+- `project` and `path` fields in frontmatter are required (tells cold-boot agents where this belongs)
 - Include a workaround whenever the note describes a constraint
 - Include where proof lives when useful, such as a session, ticket, PR, host, path, or project memory entry.
 
