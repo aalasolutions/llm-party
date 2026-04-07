@@ -199,11 +199,11 @@ export async function initLlmPartyHome(appRoot: string): Promise<void> {
   await mkdir(path.join(LLM_PARTY_HOME, "network"), { recursive: true });
   await mkdir(path.join(LLM_PARTY_HOME, "agents"), { recursive: true });
   await mkdir(path.join(LLM_PARTY_HOME, "skills"), { recursive: true });
-
-  await ensureFile(path.join(LLM_PARTY_HOME, "network", "projects.yml"), "projects: []\n");
   await mkdir(path.join(LLM_PARTY_HOME, "network", "mind-map"), { recursive: true });
-  await ensureFile(path.join(LLM_PARTY_HOME, "network", "mind-map", "INDEX.md"), MIND_MAP_INDEX);
 
+  // Non-critical seed files: agents create these on boot if missing
+  await ensureFile(path.join(LLM_PARTY_HOME, "network", "projects.yml"), "projects: []\n");
+  await ensureFile(path.join(LLM_PARTY_HOME, "network", "mind-map", "INDEX.md"), MIND_MAP_INDEX);
 }
 
 export async function configExists(): Promise<boolean> {
