@@ -3,6 +3,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createSignal, Show } from "solid-js";
 import { render } from "@opentui/solid";
 import { ClaudeAdapter } from "./adapters/claude.js";
 import { CodexAdapter } from "./adapters/codex.js";
@@ -13,6 +14,13 @@ import { Orchestrator } from "./orchestrator.js";
 import { App } from "./ui/App.js";
 import { ConfigWizard } from "./ui/ConfigWizard.js";
 import { toTag } from "./utils.js";
+import type { AppConfig } from "./types.js";
+
+interface BootResult {
+  orchestrator: Orchestrator;
+  config: AppConfig;
+  configPath: string;
+}
 
 async function main(): Promise<void> {
   const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -32,21 +40,49 @@ async function main(): Promise<void> {
   const hasConfig = await configExists();
 
   if (!hasConfig) {
+    // First run: single render, wizard first, then App after config saved
+    const [boot, setBoot] = createSignal<BootResult | null>(null);
+
     await render(
-      () => ConfigWizard({
-        isFirstRun: true,
-        onComplete: async () => {
-          await bootApp(appRoot, rendererConfig, resumeSessionId);
+      () => Show({
+        get when() { return boot(); },
+        get fallback() {
+          return ConfigWizard({
+            isFirstRun: true,
+            onComplete: async () => {
+              const result = await buildOrchestrator(appRoot, resumeSessionId);
+              setBoot(result);
+            },
+          });
+        },
+        get children() {
+          const b = boot();
+          if (!b) return null;
+          return App({
+            orchestrator: b.orchestrator,
+            config: b.config,
+            configPath: b.configPath,
+            resumeSessionId,
+          });
         },
       }),
       rendererConfig
     );
   } else {
-    await bootApp(appRoot, rendererConfig, resumeSessionId);
+    const result = await buildOrchestrator(appRoot, resumeSessionId);
+    await render(
+      () => App({
+        orchestrator: result.orchestrator,
+        config: result.config,
+        configPath: result.configPath,
+        resumeSessionId,
+      }),
+      rendererConfig
+    );
   }
 }
 
-async function bootApp(appRoot: string, rendererConfig: Record<string, any>, resumeSessionId?: string): Promise<void> {
+async function buildOrchestrator(appRoot: string, resumeSessionId?: string): Promise<BootResult> {
   const configPath = await resolveConfigPath(appRoot);
   const config = await loadConfig(configPath);
   const humanName = config.humanName?.trim() || "USER";
@@ -173,10 +209,7 @@ async function bootApp(appRoot: string, rendererConfig: Record<string, any>, res
     { reminderInterval: config.reminderInterval, maxAutoHops }
   );
 
-  await render(
-    () => App({ orchestrator, config, configPath, resumeSessionId }),
-    rendererConfig
-  );
+  return { orchestrator, config, configPath };
 }
 
 function resolveMaxAutoHops(value: number | undefined): number {
