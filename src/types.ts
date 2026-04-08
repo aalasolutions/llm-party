@@ -54,6 +54,12 @@ export type AgentEvent =
   | { type: "response"; text: string }
   | { type: "error"; message: string };
 
+export interface AgentActivityEntry {
+  ts: string;
+  activity: AgentActivity;
+  detail?: string;
+}
+
 export interface QueuedMessage {
   from: string;
   text: string;
