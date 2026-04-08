@@ -1,6 +1,6 @@
-import { createSignal, For } from "solid-js";
+import { For, Show } from "solid-js";
 import type { AgentState } from "./useOrchestrator.js";
-import { SPINNER_FRAMES, ACTIVITY_SPINNERS, SUPERSCRIPT_DIGITS } from "./constants.js";
+import { SPINNER_FRAMES, ACTIVITY_SPINNERS, globalTick, toSuperscript, PULSE_COLORS } from "./constants.js";
 import { COLORS } from "./theme.js";
 
 interface Props {
@@ -8,13 +8,9 @@ interface Props {
   agentStates: Map<string, AgentState>;
   stickyTarget: string[] | undefined;
   queueCounts?: Map<string, number>;
+  /** When sidebar is visible, hide AgentChip activity indicators (they live in accordion titles instead) */
+  sidebarVisible?: boolean;
 }
-
-const PULSE_COLORS = ["#005F87", "#0087AF", "#00AFD7", "#00D7FF", "#5FF", "#00D7FF", "#0087AF"];
-
-// Global tick: one interval drives all animations. Never stops, never restarts.
-const [globalTick, setGlobalTick] = createSignal(0);
-setInterval(() => setGlobalTick((t) => t + 1), 80);
 
 export function StatusBar(props: Props) {
   const targetNames = () => props.stickyTarget ?? props.agents.map((a) => a.name);
@@ -34,26 +30,23 @@ export function StatusBar(props: Props) {
           )}</For>
           <text fg={COLORS.textDim}>| /info</text>
         </box>
-        <box flexDirection="row">
-          <For each={props.agents}>{(a, i) => (
-            <>
-              <AgentChip
-                name={a.name}
-                getState={() => props.agentStates.get(a.name) ?? "idle"}
-                getQueued={() => props.queueCounts?.get(a.name) ?? 0}
-              />
-              {i() < props.agents.length - 1 ? <text fg={COLORS.textDim}> │ </text> : null}
-            </>
-          )}</For>
-        </box>
+        <Show when={!props.sidebarVisible}>
+          <box flexDirection="row">
+            <For each={props.agents}>{(a, i) => (
+              <>
+                <AgentChip
+                  name={a.name}
+                  getState={() => props.agentStates.get(a.name) ?? "idle"}
+                  getQueued={() => props.queueCounts?.get(a.name) ?? 0}
+                />
+                {i() < props.agents.length - 1 ? <text fg={COLORS.textDim}> │ </text> : null}
+              </>
+            )}</For>
+          </box>
+        </Show>
       </box>
     </box>
   );
-}
-
-function toSuperscript(n: number): string {
-  if (n <= 0) return "";
-  return String(n).split("").map((d) => SUPERSCRIPT_DIGITS[parseInt(d, 10)] ?? d).join("");
 }
 
 function AgentChip(props: { name: string; getState: () => AgentState; getQueued: () => number }) {
