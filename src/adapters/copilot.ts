@@ -1,5 +1,5 @@
 import { CopilotClient, CopilotSession, approveAll } from "@github/copilot-sdk";
-import { AgentAdapter, formatTranscript } from "./base.js";
+import { AgentAdapter, formatTranscript, extractShortPath, truncate } from "./base.js";
 import { ConversationMessage, PersonaConfig, AgentEvent } from "../types.js";
 
 export class CopilotAdapter implements AgentAdapter {
@@ -73,14 +73,18 @@ export class CopilotAdapter implements AgentAdapter {
 
       if (event.type === "tool.execution_start") {
         const toolName = String(event.data?.toolName ?? "").toLowerCase();
+        const args = event.data?.args as Record<string, any> | undefined;
+        const shortPath = extractShortPath(args?.path ?? args?.file_path ?? args?.pattern);
         if (toolName === "view" || toolName === "read" || toolName === "report_intent") {
-          push({ type: "activity", activity: "reading", detail: event.data?.toolName });
+          push({ type: "activity", activity: "reading", detail: shortPath ? `Read: ${shortPath}` : event.data?.toolName });
         } else if (toolName === "create" || toolName === "edit" || toolName === "write") {
-          push({ type: "activity", activity: "writing", detail: event.data?.toolName });
+          push({ type: "activity", activity: "writing", detail: shortPath ? `Edit: ${shortPath}` : event.data?.toolName });
         } else if (toolName === "run" || toolName === "bash" || toolName === "shell") {
-          push({ type: "activity", activity: "running", detail: event.data?.toolName });
+          const cmd = typeof args?.command === "string" ? truncate(args.command, 40) : "shell";
+          push({ type: "activity", activity: "running", detail: `Bash: ${cmd}` });
         } else if (toolName === "search" || toolName === "grep" || toolName === "find") {
-          push({ type: "activity", activity: "searching", detail: event.data?.toolName });
+          const query = typeof args?.query === "string" ? truncate(args.query, 30) : event.data?.toolName;
+          push({ type: "activity", activity: "searching", detail: `Search: ${query}` });
         } else {
           push({ type: "activity", activity: "thinking", detail: event.data?.toolName });
         }

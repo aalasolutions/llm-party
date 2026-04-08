@@ -1,5 +1,5 @@
 import { Codex, type ThreadOptions } from "@openai/codex-sdk";
-import { AgentAdapter, formatTranscript } from "./base.js";
+import { AgentAdapter, formatTranscript, extractShortPath, truncate } from "./base.js";
 import { ConversationMessage, PersonaConfig, AgentEvent } from "../types.js";
 
 export class CodexAdapter implements AgentAdapter {
@@ -76,13 +76,16 @@ export class CodexAdapter implements AgentAdapter {
         if (event.type === "item.started" || event.type === "item.updated") {
           const item = event.item as any;
           if (item.type === "command_execution") {
-            yield { type: "activity", activity: "running", detail: item.command };
+            const cmd = typeof item.command === "string" ? truncate(item.command, 40) : "shell";
+            yield { type: "activity", activity: "running", detail: `Bash: ${cmd}` };
           } else if (item.type === "file_change") {
-            yield { type: "activity", activity: "writing", detail: "file changes" };
+            const filePath = extractShortPath(item.filename ?? item.path);
+            yield { type: "activity", activity: "writing", detail: filePath ? `Edit: ${filePath}` : "file changes" };
           } else if (item.type === "reasoning") {
             yield { type: "activity", activity: "thinking", detail: "reasoning" };
           } else if (item.type === "web_search") {
-            yield { type: "activity", activity: "searching", detail: item.query };
+            const q = typeof item.query === "string" ? truncate(item.query, 30) : "web";
+            yield { type: "activity", activity: "searching", detail: `Search: ${q}` };
           } else if (item.type === "mcp_tool_call") {
             yield { type: "activity", activity: "running", detail: `${item.server}:${item.tool}` };
           }

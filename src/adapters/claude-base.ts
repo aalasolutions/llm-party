@@ -1,5 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { AgentAdapter, formatTranscript } from "./base.js";
+import { AgentAdapter, formatTranscript, extractShortPath, truncate } from "./base.js";
 import { ConversationMessage, PersonaConfig, AgentEvent } from "../types.js";
 
 export abstract class ClaudeBaseAdapter implements AgentAdapter {
@@ -94,14 +94,18 @@ export abstract class ClaudeBaseAdapter implements AgentAdapter {
             for (const block of blocks) {
               if (block.type === "tool_use" && block.name) {
                 const toolName = String(block.name).toLowerCase();
+                const input = block.input as Record<string, any> | undefined;
+                const shortPath = extractShortPath(input?.file_path ?? input?.path ?? input?.pattern);
                 if (toolName === "read" || toolName === "glob") {
-                  yield { type: "activity", activity: "reading", detail: block.name };
+                  yield { type: "activity", activity: "reading", detail: shortPath ? `Read: ${shortPath}` : block.name };
                 } else if (toolName === "write" || toolName === "edit") {
-                  yield { type: "activity", activity: "writing", detail: block.name };
+                  yield { type: "activity", activity: "writing", detail: shortPath ? `Edit: ${shortPath}` : block.name };
                 } else if (toolName === "bash") {
-                  yield { type: "activity", activity: "running", detail: "shell" };
+                  const cmd = typeof input?.command === "string" ? truncate(input.command, 40) : "shell";
+                  yield { type: "activity", activity: "running", detail: `Bash: ${cmd}` };
                 } else if (toolName === "grep" || toolName === "search" || toolName === "websearch") {
-                  yield { type: "activity", activity: "searching", detail: block.name };
+                  const query = typeof input?.pattern === "string" ? truncate(input.pattern, 30) : block.name;
+                  yield { type: "activity", activity: "searching", detail: `Search: ${query}` };
                 } else {
                   yield { type: "activity", activity: "thinking", detail: block.name };
                 }
