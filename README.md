@@ -27,6 +27,16 @@ No MCP. No master/servant. No window juggling. Just peers at a terminal table.
 
 <br/>
 
+## What's new in v0.12.0
+
+- **Agent sidebar** with live activity accordion. Per-agent status, current tool/file, scrollable activity log. Toggle with `Ctrl+B`. Auto-hides on narrow terminals.
+- **Animated splash screen** when the terminal is idle. Octopus mascot rendered in block characters.
+- **Rich activity details** in sidebar and status bar. See exactly what each agent is doing: `Read: src/index.ts`, `Bash: npm test`, `Search: handleSubmit`.
+- **Cancel panel** (`Esc` when agents are active). Multi-select which agents to kill, the rest keep working.
+- **CWD bar** at the bottom of the terminal showing your current working directory.
+
+<br/>
+
 ## Why llm-party?
 
 |                        | Traditional multi-agent        | llm-party                              |
@@ -401,7 +411,7 @@ Or use the `/resume` command as your first input in a fresh session:
 /resume 20260402-102915-74722-ba956b96
 ```
 
-The session ID is shown at startup or via `/session`. Resume loads the full transcript, restores per-agent SDK sessions (Claude session IDs, Codex thread IDs, Copilot session IDs), and tracks which messages each agent has already seen. Agents pick up exactly where they left off with no duplicate processing.
+The session ID is shown at startup (and in `/info`). Resume loads the full transcript, restores per-agent SDK sessions (Claude session IDs, Codex thread IDs, Copilot session IDs), and tracks which messages each agent has already seen. Agents pick up exactly where they left off with no duplicate processing.
 
 A `.manifest.json` file alongside each transcript stores the session state: agent cursors, SDK session IDs, sticky targets. This is what makes cross-provider resume possible.
 
@@ -417,17 +427,18 @@ Resume only works before the first message is sent. Once a conversation has star
 | `/config`      | Open config wizard                                |
 | `/info`        | Commands and keyboard shortcuts panel             |
 | `/save <path>` | Export conversation as JSON                       |
-| `/session`     | Show session ID and transcript path               |
 | `/resume <id>` | Resume a previous session (first message only)    |
 | `/changes`     | Show git-modified files                           |
 | `/clear`       | Clear chat display (Ctrl+L also works)            |
 | `/exit`        | Quit (graceful shutdown, all adapters cleaned up) |
 | `Ctrl+P`       | Toggle agents panel                               |
+| `Ctrl+B`       | Toggle agent sidebar                              |
 | `Ctrl+L`       | Clear chat                                        |
 | `Ctrl+C`       | Copy selection or exit                            |
 | `Ctrl+A / E`   | Jump to start / end of input line                 |
 | `Ctrl+U`       | Clear entire input line                           |
 | `Ctrl+W`       | Delete word backward                              |
+| `Esc`          | Open cancel panel (when agents are active)        |
 | `Shift+Enter`  | Insert new line in input                          |
 | `Up / Down`    | Input history                                     |
 | `PageUp/Down`  | Scroll chat                                       |
