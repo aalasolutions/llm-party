@@ -56,8 +56,8 @@ DATE | AGENT:@{{agentTag}} | DECISION | WHY | CONSEQUENCES
 
 Rules:
 - `Current State` is a short overwriteable snapshot
-- `Log` is append-only
-- `Decisions` is append-only
+- `Log` is newest-first, never delete. New entries go at the top of the section.
+- `Decisions` is newest-first, never delete.
 - When logging a fix, decision, or incident, include provenance in `DETAIL` when available, such as session, ticket, PR, host, path, or command.
 
 ### `.llm-party/plans/`
@@ -153,7 +153,7 @@ projects:
 ```
 
 Rules:
-- `history` is append-only
+- `history` is newest-first, never delete
 - Use it for milestones and cross-project decisions
 - Keep it breadcrumb-sized and include a short reference when useful, such as a session, ticket, PR, host, or memory file.
 
@@ -161,9 +161,12 @@ Rules:
 
 ```text
 mind-map/
-  INDEX.md                          # root index, links to project indexes
-  {project-id}/                     # folder per project, matches projects.yml id
-    INDEX.md                        # project-level index
+  INDEX.md                          # root entry point, links to all folders
+  _global/                          # cross-project: identity, org, preferences
+    GLOBAL.md                       # entry point for global context
+    memory.md                       # example: who the human is, how they work
+  {project-id}/                     # project-specific, matches projects.yml id
+    {project-id}.md                 # entry point for this project's discoveries
     discovery-name.md               # one file per discovery
 ```
 
@@ -172,11 +175,23 @@ mind-map/
 ```markdown
 # Living Memory Neural Network
 
+## Global
+- [[_global/GLOBAL]] - identity, org, preferences, how we work together
+
 ## Projects
-- [[{project-id}/INDEX]] - one-line project summary
+- [[{project-id}/{project-id}]] - one-line project summary
 ```
 
-#### Project `INDEX.md`
+#### `_global/GLOBAL.md`
+
+```markdown
+# Global Context
+
+## Entries
+- [[_global/memory]] - anything learned about the human, the org, or how to work together
+```
+
+#### Project `{project-id}/{project-id}.md`
 
 ```markdown
 # {project-name}
@@ -212,7 +227,7 @@ How to avoid or handle it.
 Rules:
 - One folder per project, named after the `id` field in `projects.yml`
 - Each discovery gets its own file inside the project folder
-- Add a matching entry to the project `INDEX.md`
+- Add a matching entry to the project's `{project-id}.md`
 - Add the project to root `INDEX.md` if not already listed
 - Cross-project wikilinks include the project folder: `[[lila/widget-migration]]`
 - `project` and `path` fields in frontmatter are required (tells cold-boot agents where this belongs)
@@ -229,6 +244,7 @@ DATE | PROJECT PATH | RULE | EXAMPLE
 
 Rules:
 - One file per agent, named `{{agentTag}}.md`
-- Append-only
+- Newest-first, never delete. New entries go at the top.
 - Write corrections and validated non-obvious approaches immediately
+- To search older entries, use Grep
 
