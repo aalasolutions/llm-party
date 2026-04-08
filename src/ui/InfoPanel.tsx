@@ -23,7 +23,6 @@ export function InfoPanel(props: InfoPanelProps) {
     ["/agents", "Agent panel (Ctrl+P)"],
     ["/config", "Config wizard"],
     ["/info", "This panel"],
-    ["/session", "Session details"],
     ["/save <path>", "Export as JSON"],
     ["/changes", "Git modified files"],
     ["/clear", "Clear chat (Ctrl+L)"],
@@ -32,13 +31,13 @@ export function InfoPanel(props: InfoPanelProps) {
 
   const shortcuts = [
     ["Ctrl+P", "Toggle agents panel"],
+    ["Ctrl+B", "Toggle sidebar"],
     ["Ctrl+L", "Clear chat"],
-    ["Ctrl+C", "Copy or exit"],
     ["Ctrl+A", "Jump to start of line"],
     ["Ctrl+E", "Jump to end of line"],
     ["Ctrl+U", "Clear entire line"],
     ["Ctrl+W", "Delete word backward"],
-    ["Shift+Enter", "New line"],
+    ["Shift/Alt+Enter", "New line"],
     ["Up/Down", "Input history"],
     ["PageUp/Down", "Scroll chat"],
   ];
