@@ -1,16 +1,18 @@
-import { createSignal, onMount, Show } from "solid-js";
-import { useKeyboard, useRenderer } from "@opentui/solid";
+import { createSignal, onMount, Show, For } from "solid-js";
+import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { spawn } from "node:child_process";
 import { Orchestrator } from "../orchestrator.js";
 import { useOrchestrator, getChangedFiles } from "./useOrchestrator.js";
 import { MessageBubble } from "./MessageBubble.js";
 import { StatusBar } from "./StatusBar.js";
+import { AgentSidebar } from "./AgentSidebar.js";
 import { InputLine } from "./InputLine.js";
 import { ConfigWizard } from "./ConfigWizard.js";
 import { AgentsPanel } from "./AgentsPanel.js";
 import { InfoPanel } from "./InfoPanel.js";
 import { CancelPanel } from "./CancelPanel.js";
+import { SplashScreen } from "./SplashScreen.js";
 import { COLORS } from "./theme.js";
 import { loadConfig } from "../config/loader.js";
 import type { AppConfig } from "../types.js";
@@ -40,7 +42,7 @@ interface AppProps {
 
 export function App(props: AppProps) {
   const renderer = useRenderer();
-  const { messages, agentStates, queueCounts, stickyTarget, dispatching, dispatch, addSystemMessage, addDisplayMessage, clearMessages, refreshStickyTarget } =
+  const { messages, agentStates, agentDetails, agentActivityLog, queueCounts, stickyTarget, dispatching, dispatch, addSystemMessage, addDisplayMessage, clearMessages, refreshStickyTarget } =
     useOrchestrator(props.orchestrator);
   const humanName = props.orchestrator.getHumanName();
   const agents = props.orchestrator.listAgents();
@@ -50,6 +52,26 @@ export function App(props: AppProps) {
   const [showAgents, setShowAgents] = createSignal(false);
   const [showInfo, setShowInfo] = createSignal(false);
   const [showCancel, setShowCancel] = createSignal(false);
+
+  const dims = useTerminalDimensions();
+  const [sidebarEnabled, setSidebarEnabled] = createSignal(true);
+
+  const cwd = () => {
+    const full = process.cwd();
+    const home = process.env.HOME ?? process.env.USERPROFILE ?? "";
+    return home && full.startsWith(home) ? "~" + full.slice(home.length) : full;
+  };
+
+  const MIN_WIDTH_FOR_SIDEBAR = 100;
+  const sidebarWidth = () => {
+    const w = dims().width;
+    return Math.max(24, Math.min(40, Math.floor(w * 0.32)));
+  };
+  const sidebarVisible = () => sidebarEnabled() && dims().width >= MIN_WIDTH_FOR_SIDEBAR;
+  const leftPaneWidth = () => {
+    const w = dims().width;
+    return sidebarVisible() ? Math.max(0, w - (sidebarWidth() + 1)) : w;
+  };
 
   // Resume session from --resume CLI flag or /resume command
   const resumeSession = async (sessionId: string) => {
@@ -108,6 +130,12 @@ export function App(props: AppProps) {
       return;
     }
 
+    // Ctrl+B: toggle sidebar (when screen is wide enough)
+    if (key.ctrl && key.name === "b") {
+      setSidebarEnabled((v) => !v);
+      return;
+    }
+
     if (showAgents() || showCancel() || showInfo()) return;
 
     // Esc: open cancel panel if any agents are active
@@ -155,13 +183,6 @@ export function App(props: AppProps) {
 
     if (line === "/agents") {
       setShowAgents(true);
-      return;
-    }
-
-    if (line === "/session") {
-      addSystemMessage(
-        `Session: ${props.orchestrator.getSessionId()}\nTranscript: ${props.orchestrator.getTranscriptPath()}`
-      );
       return;
     }
 
@@ -233,8 +254,6 @@ export function App(props: AppProps) {
     await dispatch(line);
   };
 
-  const tagsLine = agents.map((a) => `@${a.tag}`).join(", ");
-
   return (
     <Show
       when={screen() !== "config"}
@@ -251,39 +270,63 @@ export function App(props: AppProps) {
       }
     >
     <box flexDirection="column" width="100%" height="100%" onMouseUp={() => copySelection(renderer)}>
-      {/* Chat area: flexBasis=0 prevents content from pushing siblings off screen */}
-      <scrollbox
-        ref={(el: ScrollBoxRenderable) => scrollRef = el}
-        stickyScroll={true}
-        stickyStart="bottom"
-        flexGrow={1}
-        flexBasis={0}
-        flexShrink={1}
-      >
-        {/* Header scrolls with messages */}
-        <text fg={COLORS.primary} selectable>
-          llm-party | {tagsLine} | /agents /config /session /save /changes /clear /exit
-        </text>
-        {messages().map((msg) => (
-          <MessageBubble message={msg} humanName={humanName} />
-        ))}
-      </scrollbox>
+      <box flexDirection="row" width="100%" flexGrow={1} flexBasis={0} alignItems="stretch">
+        <box flexDirection="column" flexGrow={1} flexBasis={0} flexShrink={1}>
+          {/* Chat area: flexBasis=0 prevents content from pushing siblings off screen */}
+          <scrollbox
+            ref={(el: ScrollBoxRenderable) => scrollRef = el}
+            stickyScroll={true}
+            stickyStart="bottom"
+            flexGrow={1}
+            flexBasis={0}
+            flexShrink={1}
+          >
+            <Show when={messages().length === 0}>
+              <SplashScreen />
+            </Show>
+            <For each={messages()}>{(msg) => (
+              <MessageBubble message={msg} humanName={humanName} />
+            )}</For>
+          </scrollbox>
 
-      {/* Status bar */}
-      <StatusBar
-        agents={agents}
-        agentStates={agentStates()}
-        stickyTarget={stickyTarget()}
-        queueCounts={queueCounts()}
-      />
+          {/* Status bar */}
+          <StatusBar
+            agents={agents}
+            agentStates={agentStates()}
+            stickyTarget={stickyTarget()}
+            queueCounts={queueCounts()}
+            sidebarVisible={sidebarVisible()}
+          />
 
-      {/* Input */}
-      <InputLine
-        humanName={humanName}
-        onSubmit={handleSubmit}
-        disabled={showAgents() || showInfo() || showCancel()}
-        disabledMessage={showAgents() || showCancel() ? "" : undefined}
-      />
+          {/* Input */}
+          <InputLine
+            humanName={humanName}
+            onSubmit={handleSubmit}
+            disabled={showAgents() || showInfo() || showCancel()}
+            disabledMessage={showAgents() || showCancel() ? "" : showInfo() ? "info panel opened" : undefined}
+            // keep a small safety margin so the separator never wraps when the right sidebar is visible
+            availableWidth={sidebarVisible() ? Math.max(0, leftPaneWidth() - 2) : undefined}
+          />
+        </box>
+
+        <Show when={sidebarVisible()}>
+          <box paddingLeft={1} paddingY={0} flexDirection="column" height="100%">
+            <AgentSidebar
+              agents={agents}
+              agentStates={agentStates()}
+              agentDetails={agentDetails()}
+              agentActivityLog={agentActivityLog()}
+              queueCounts={queueCounts()}
+              width={sidebarWidth()}
+            />
+          </box>
+        </Show>
+      </box>
+
+      {/* Bottom bar: CWD */}
+      <box flexShrink={0} paddingX={1}>
+        <text fg={COLORS.textDim}>{cwd()}</text>
+      </box>
 
       {/* Agents overlay */}
       {showAgents() && (
