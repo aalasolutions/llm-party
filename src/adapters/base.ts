@@ -20,3 +20,17 @@ export function formatTranscript(messages: ConversationMessage[], agentName: str
     })
     .join("\n\n");
 }
+
+/** Shorten an absolute path to parent/basename for sidebar display */
+export function extractShortPath(raw: unknown): string | undefined {
+  if (typeof raw !== "string" || raw.length === 0) return undefined;
+  const parts = raw.replace(/\\/g, "/").split("/").filter(Boolean);
+  if (parts.length <= 2) return parts.join("/");
+  return parts.slice(-2).join("/");
+}
+
+/** Truncate a string to maxLen, adding ellipsis */
+export function truncate(str: string, maxLen: number): string {
+  if (str.length <= maxLen) return str;
+  return str.slice(0, maxLen - 1) + "…";
+}
