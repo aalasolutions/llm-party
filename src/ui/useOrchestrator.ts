@@ -2,7 +2,9 @@ import { createSignal } from "solid-js";
 import { execFile } from "node:child_process";
 import { Orchestrator } from "../orchestrator.js";
 import { initProjectFolder } from "../config/loader.js";
-import type { ConversationMessage, DisplayMessage, AgentActivity } from "../types.js";
+import type { ConversationMessage, DisplayMessage, AgentActivity, AgentActivityEntry } from "../types.js";
+
+const ACTIVITY_LOG_MAX = 30;
 
 export type AgentState = AgentActivity;
 
@@ -15,6 +17,8 @@ function nextSystemId(): number {
 interface UseOrchestratorReturn {
   messages: () => DisplayMessage[];
   agentStates: () => Map<string, AgentState>;
+  agentDetails: () => Map<string, string | undefined>;
+  agentActivityLog: () => Map<string, AgentActivityEntry[]>;
   queueCounts: () => Map<string, number>;
   stickyTarget: () => string[] | undefined;
   dispatching: () => boolean;
@@ -31,6 +35,12 @@ export function useOrchestrator(
   const [messages, setMessages] = createSignal<DisplayMessage[]>([]);
   const [agentStates, setAgentStates] = createSignal<Map<string, AgentState>>(
     new Map(orchestrator.listAgents().map((a) => [a.name, "idle" as AgentState]))
+  );
+  const [agentDetails, setAgentDetails] = createSignal<Map<string, string | undefined>>(
+    new Map(orchestrator.listAgents().map((a) => [a.name, undefined]))
+  );
+  const [agentActivityLog, setAgentActivityLog] = createSignal<Map<string, AgentActivityEntry[]>>(
+    new Map(orchestrator.listAgents().map((a) => [a.name, []]))
   );
   const [stickyTarget, setStickyTargetSignal] = createSignal<string[] | undefined>(
     orchestrator.getStickyTarget()
@@ -79,13 +89,47 @@ export function useOrchestrator(
       updateQueueCounts();
     },
     // onActivity: agent state changed
-    (agentName: string, activity: AgentActivity) => {
+    (agentName: string, activity: AgentActivity, detail?: string) => {
       const originalName = nameMap.get(agentName.toUpperCase()) ?? agentName;
+      const prevState = agentStates().get(originalName);
       setAgentStates((prev) => {
         const next = new Map(prev);
         next.set(originalName, activity);
         return next;
       });
+      // New dispatch: agent went from idle/error to thinking. Clear its activity log.
+      if (activity === "thinking" && (prevState === "idle" || prevState === "error" || prevState === "queued" || prevState === undefined)) {
+        setAgentActivityLog((prev) => {
+          const next = new Map(prev);
+          next.set(originalName, []);
+          return next;
+        });
+        setAgentDetails((prev) => {
+          const next = new Map(prev);
+          next.set(originalName, undefined);
+          return next;
+        });
+      }
+      if (detail !== undefined && detail !== "") {
+        setAgentDetails((prev) => {
+          const next = new Map(prev);
+          next.set(originalName, detail);
+          return next;
+        });
+      }
+
+      // Push to ring buffer (log only meaningful transitions or any event with detail)
+      const shouldLog = (detail !== undefined && detail !== "") || (activity !== "idle" && activity !== "queued" && activity !== "thinking");
+      if (shouldLog) {
+        const ts = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        setAgentActivityLog((prev) => {
+          const next = new Map(prev);
+          const entries = [...(next.get(originalName) ?? []), { ts, activity, detail }];
+          // Cap at ACTIVITY_LOG_MAX entries
+          next.set(originalName, entries.length > ACTIVITY_LOG_MAX ? entries.slice(-ACTIVITY_LOG_MAX) : entries);
+          return next;
+        });
+      }
       setDispatching(orchestrator.dispatching);
       updateQueueCounts();
     },
@@ -163,7 +207,7 @@ export function useOrchestrator(
     setStickyTargetSignal(orchestrator.getStickyTarget());
   };
 
-  return { messages, agentStates, queueCounts, stickyTarget, dispatching, dispatch, addSystemMessage, addDisplayMessage, clearMessages, refreshStickyTarget };
+  return { messages, agentStates, agentDetails, agentActivityLog, queueCounts, stickyTarget, dispatching, dispatch, addSystemMessage, addDisplayMessage, clearMessages, refreshStickyTarget };
 }
 
 export function getChangedFiles(): Promise<string[]> {
