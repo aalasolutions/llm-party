@@ -7,6 +7,7 @@ interface Props {
   onSubmit: (value: string) => void;
   disabled: boolean;
   disabledMessage?: string;
+  availableWidth?: number;
 }
 
 // Function key names to ignore (but NOT the letter "f")
@@ -202,7 +203,7 @@ export function InputLine(props: Props) {
 
   const borderColor = () => props.disabled ? COLORS.borderDim : COLORS.borderActive;
   const label = () => `${props.humanName} > `;
-  const separator = () => "─".repeat(Math.max(0, dims().width - 2));
+  const separator = () => "─".repeat(Math.max(0, (props.availableWidth != null ? props.availableWidth : dims().width - 2)));
 
   return (
     <box flexDirection="column" paddingX={1} width="100%" flexShrink={0}>
