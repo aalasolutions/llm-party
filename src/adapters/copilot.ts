@@ -113,8 +113,11 @@ export class CopilotAdapter implements AgentAdapter {
       }
     });
 
-    // Send the message (non-blocking)
-    const sendSession = async () => {
+    // Send the message concurrently with event draining.
+    // We keep the promise so we can await it before returning,
+    // ensuring the SDK's internal session state is fully committed
+    // before the next stream() call starts (prevents one-message-behind bug).
+    const sendPromise = (async () => {
       try {
         await this.session!.send({ prompt: transcript });
       } catch (err) {
@@ -132,9 +135,7 @@ export class CopilotAdapter implements AgentAdapter {
           done = true;
         }
       }
-    };
-
-    sendSession();
+    })();
 
     // Drain the event queue as a generator
     try {
@@ -146,6 +147,7 @@ export class CopilotAdapter implements AgentAdapter {
           if (event.type === "response" || event.type === "error") {
             clearTimeout(timer);
             unsubscribe?.();
+            await sendPromise;
             return;
           }
         }
@@ -153,6 +155,7 @@ export class CopilotAdapter implements AgentAdapter {
     } finally {
       clearTimeout(timer);
       unsubscribe?.();
+      await sendPromise;
     }
 
     yield { type: "activity", activity: "idle" };
