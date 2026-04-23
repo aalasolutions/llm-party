@@ -48,6 +48,7 @@ export class CopilotAdapter implements AgentAdapter {
     const eventQueue: AgentEvent[] = [];
     let resolve: (() => void) | null = null;
     let done = false;
+    let lastMessageContent = "";
 
     const push = (event: AgentEvent) => {
       eventQueue.push(event);
@@ -101,10 +102,18 @@ export class CopilotAdapter implements AgentAdapter {
       if (event.type === "assistant.message") {
         const content = event.data?.content;
         if (typeof content === "string" && content.length > 0) {
-          push({ type: "activity", activity: "idle" });
-          push({ type: "response", text: content });
-          done = true;
+          lastMessageContent = content;
         }
+      }
+
+      // session.idle is the real "all work done" signal from the SDK.
+      // assistant.message can fire mid-turn while tools are still running.
+      if (event.type === "session.idle") {
+        if (lastMessageContent) {
+          push({ type: "activity", activity: "idle" });
+          push({ type: "response", text: lastMessageContent });
+        }
+        done = true;
       }
 
       if (event.type === "session.error") {

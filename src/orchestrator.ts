@@ -148,6 +148,7 @@ export class Orchestrator {
   private readonly contextWindowSize: number;
   private readonly reminderInterval: number;
   private readonly reminderCursors: Map<string, number> = new Map();
+  private readonly pendingContext: Map<string, string> = new Map();
   private readonly maxAutoHops: number;
   private readonly queueTtlMs: number;
   private readonly maxQueueSize: number;
@@ -329,6 +330,21 @@ export class Orchestrator {
       return;
     }
 
+    // If the agent had a stashed response from a previous run (new messages
+    // arrived while it was working), prepend it so the agent sees its own
+    // prior work alongside the new chat and can give one coherent reply.
+    // Marked as SYSTEM so buildInputForAgent doesn't filter it out.
+    const stashed = this.pendingContext.get(agentName);
+    if (stashed) {
+      unseen.unshift({
+        id: -1,
+        from: "SYSTEM",
+        text: `[Your previous work before new messages arrived]\n${stashed}`,
+        createdAt: new Date().toISOString(),
+      });
+      this.pendingContext.delete(agentName);
+    }
+
     const inputMessages = this.buildInputForAgent(agentName, unseen);
     const responseText = await this.streamWithTimeout(agentName, agent, inputMessages, this.timeoutFor(agentName));
 
@@ -340,13 +356,27 @@ export class Orchestrator {
       return;
     }
 
+    this.lastSeenByAgent.set(agentName, historyMaxId);
+
+    const isError = responseText.startsWith("[Timeout]") || responseText.startsWith("[Error]") || responseText.startsWith("[Adapter Error]");
+
+    // If new messages arrived while the agent was working, don't save the
+    // intermediate response to conversation. Instead stash it as internal
+    // context so the agent can re-process with full awareness of the new
+    // chat + its own work in a single coherent reply.
+    if (!isError && this.queueManager.hasPending(agentName)) {
+      this.pendingContext.set(agentName, responseText);
+      this.queueManager.setProcessing(agentName, false);
+      this.drainQueue(agentName);
+      return;
+    }
+
     const response: ConversationMessage = {
       id: ++this.messageId,
       from: agentName.toUpperCase(),
       text: responseText,
       createdAt: new Date().toISOString()
     };
-    this.lastSeenByAgent.set(agentName, historyMaxId);
     this.conversation.push(response);
     await this.appendTranscript(response);
     this.onMessage(response);
@@ -357,7 +387,6 @@ export class Orchestrator {
     this.queueManager.setProcessing(agentName, false);
 
     // Process @next handoffs
-    const isError = responseText.startsWith("[Timeout]") || responseText.startsWith("[Error]") || responseText.startsWith("[Adapter Error]");
     if (!isError) {
       this.processHandoffs(response, chainHops);
     }
